@@ -41,7 +41,9 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
     return resp
 
 def clean_args(args):
-    for k,v in args.iteritems() :
+    for k,v in args.items() :
         if isinstance(v,bool):
             args[v] = int(v)
+        elif isinstance(v,list):
+            args[v] = ",".join(v)
     return args
