@@ -1,7 +1,8 @@
-import oauth
+from oauth import oauth
 import time
 import httplib2
 import urlparse
+import urllib2
 from flickr_keys import API_KEY, API_SECRET
 
 TOKEN_REQUEST_URL = "http://www.flickr.com/services/oauth/request_token"
@@ -18,8 +19,9 @@ def token_request():
         'oauth_consumer_key': API_KEY
     }
 
-    consumer = oauth.Consumer(key=API_KEY, secret=API_SECRET)
-    req = oauth.Request(method="GET", url=TOKEN_REQUEST_URL, parameters=params)
-    signature = oauth.SignatureMethod_HMAC_SHA1().sign(req,self.consumer,None)
-    req['oauth_signature'] = signature
-    return req
+    consumer = oauth.OAuthConsumer(key=API_KEY, secret=API_SECRET)
+    req = oauth.OAuthRequest(http_method="GET", http_url=TOKEN_REQUEST_URL, parameters=params)
+    req.sign_request(oauth.OAuthSignatureMethod_HMAC_SHA1(),consumer,None)
+    resp = urllib2.urlopen(req.to_url())
+    request_token = dict(urlparse.parse_qsl(resp.read()))
+    return request_token()
