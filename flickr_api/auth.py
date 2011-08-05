@@ -12,7 +12,9 @@ class AuthHandlerError(Exception):
     pass
 
 class AuthHandler(object):
-    def __init__(self,key = API_KEY, secret = API_SECRET, callback = " ", access_token_key = None, access_token_secret = None):
+    def __init__(self,key = API_KEY, secret = API_SECRET, callback = None, access_token_key = None, access_token_secret = None):
+        if callback is None :
+            callback = "http://api.flickr.com/services/rest/?method=flickr.test.echo&api_key=%s"%key
         self.key = key
         self.secret = secret
         params = {
