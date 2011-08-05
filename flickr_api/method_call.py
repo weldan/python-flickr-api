@@ -35,15 +35,29 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
     except urllib2.HTTPError , e:
         raise FlickrError( e.read().split('&')[0] )
 
-        
+
+
     if resp["stat"] != "ok" :
         raise FlickrAPIError(resp["code"],resp["message"])
+    clean_content(resp)
+
     return resp
+
+def clean_content(dict_):
+    for k,v in dict_.items() :
+        if isinstance(v,dict) :
+            if v.has_key(u"_content") :
+                if len(v) == 1:
+                    dict_[k] = v["_content"]
+                else :
+                    v["text"] = v.pop("_content")
+        v = dict_[k]
+        if isinstance(v,dict): clean_content(v)
 
 def clean_args(args):
     for k,v in args.items() :
         if isinstance(v,bool):
             args[v] = int(v)
         elif isinstance(v,list):
-            args[v] = ",".join(v)
+            args[v] = " ".join(v)
     return args
