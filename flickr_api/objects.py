@@ -1,53 +1,345 @@
 # -*- encoding: utf8 -*-
+"""
+    Object Oriented implementation of Flickr API.
+    
+    Important notes:
+    - For consistency, the nameing of methods might differ from the name
+      in the official API. Please check the method "docstring" to know
+      what is the implemented method.
+      
+    - For methods which expect an object "id", either the 'id' string
+      or the object itself can be used as argument. Similar consideration
+      holds for lists of id's. 
+      
+      For instance if "photo_id" is expected you can give call the function
+      with named argument "photo = PhotoObject" or with the id string 
+      "photo_id = id_string".
+
+
+    Author : Alexis Mignon (c)
+    email  : alexis.mignon_at_gmail.com
+    Date   : 05/08/2011
+"""
 import method_call
-import base
+from  base import FlickrDictObject,FlickrObject,FlickrError,dict_converter
 
 AUTH_HANDLER = None
 
-
-class Test(object):
+class Activity(FlickrObject):
     @staticmethod
-    def login():
-        r = method_call.call_api(method = "flickr.test.login",auth_handler = AUTH_HANDLER)
-        user = r["user"]
-        return Person(user["id"],username = user["username"]["_content"])
+    def userPhotos(**args):
+        """ method :flickr.activity.userPhotos
+            Returns a list of recent activity on photos belonging to the calling user.
+            Do not poll this method more than once an hour.
+            
+        Authentication:
+            This method requires authentication with 'read' permission.
+        
+        Arguments:
+            timeframe (Optional)
+                The timeframe in which to return updates for. This can be 
+                specified in days ('2d') or hours ('4h'). The default 
+                behaviour is to return changes since the beginning of the
+                previous user session.
+            per_page (Optional)
+                Number of items to return per page. If this argument is 
+                omitted, it defaults to 10. The maximum allowed value is 50.
+            page (Optional)
+                The page of results to return. If this argument is omitted, 
+                it defaults to 1. 
 
-def attr_getter(attr_name):
-    def get(self):
-        return self.__dict__["_%s__%s"%(self.__class__.__name__,attr_name)]
-
-
-class FlickrObject(object):
-    def __init__(self,object_id,**params):
-        params["id"] = object_id
-        params["loaded"] = False
-        self._set_properties(**params)
-
-    def _set_properties(self,**params):
-        for k,v in params.iteritems() :
-            self.__dict__[k] = v
+        """
+        
+        r = method_call.call_api(method = "flickr.activity.userPhotos",auth_handler = AUTH_HANDLER,**args)
+        
+        items = _check_list(r["items"]["item"])
+        activities = []
+        for item in items :
+            activity = item.pop("activity")
+            item_type = item.pop(["type"])
+            if item_type == "photo" :
+                item = Photo(**item)
+            elif item_type == "photoset" :
+                item = PhotoSet(**item)
+            events_ = []
+            events = _check_list(activity["event"])
+            for e in events :
+                user = e["user"]
+                username = e.pop("username")
+                e["user"] = Person(id = user, username = username)
+                e_type = e.pop("type")
+                if e_type == "comment" :
+                    if item_type == "photo" :
+                        events_.append(PhotoComment(photo = item, **e))
+                    elif item_type == "photoset" :
+                        events_.append(PhotoSetComment(photoset = item, **e))
+                elif e_type == 'note' :
+                    events_.append(Note(photo = item,**e))
+            activities.append( Activity(item = item, events = events) )
+        return activities
     
-    def __getattr__(self,name):
-        if not self.loaded :
-            self.load()
-        if self.loaded : raise AttributeError("'%s' object has no attribute '%s'"%(self.__class__.__name__,name))
-    
-    def __setattr__(self,name,values):
-        raise RunTimeError("Readonly attribute")
+    @staticmethod
+    def userComments(**args):
+        """ method: flickr.activity.userComments
+            Returns a list of recent activity on photos commented on by 
+            the calling user. Do not poll this method more than once an hour.
+        
+        Authentication:
 
+            This method requires authentication with 'read' permission.
+        
+        Arguments:
+            per_page (Optional)
+                Number of items to return per page. If this argument is omitted, it defaults to 10. The maximum allowed value is 50.
+            page (Optional)
+                The page of results to return. If this argument is omitted, it defaults to 1. 
+        
+        """
+        
+        r = method_call.call_api(method = "flickr.activity.userComments",auth_handler = AUTH_HANDLER,**args)
+        
+        items = _check_list(r["items"]["item"])
+        activities = []
+        for item in items :
+            activity = item.pop("activity")
+            item_type = item.pop(["type"])
+            if item_type == "photo" :
+                item = Photo(**item)
+            elif item_type == "photoset" :
+                item = PhotoSet(**item)
+            events_ = []
+            events = _check_list(activity["event"])
+            for e in events :
+                user = e["user"]
+                username = e.pop("username")
+                e["user"] = Person(id = user, username = username)
+                e_type = e.pop("type")
+                if e_type == "comment" :
+                    if item_type == "photo" :
+                        events_.append(PhotoComment(photo = item, **e))
+                    elif item_type == "photoset" :
+                        events_.append(PhotoSetComment(photoset = item, **e))
+                elif e_type == 'note' :
+                    events_.append(Note(photo = item,**e))
+            activities.append( Activity(item = item, events = events) )
+        return activities
+
+class Blog(FlickrObject):
+    __display__ = ["id","name"]
+    __converters__ = [
+        dict_converter(["needspassword"],bool),
+    ]
+    @staticmethod
+    def getList(**args):
+        """ method: flickr.blogs.getList
+            Get a list of configured blogs for the calling user.
+        
+        Authentication:
+
+            This method requires authentication with 'read' permission.
+        
+        Arguments:
+            service (Optional)
+                Optionally only return blogs for a given service id. You 
+                can get a list of from flickr.blogs.getServices().
+        """
+        
+        try :
+            args["service"] = args["service"].id
+        except (KeyError,AttributeError): pass
+        r = method_call.call_api(method = "flickr.photos.blogs.getList",auth_handler = AUTH_HANDLER,**args)
+        return [ Blog(**b) for b in _check_list(r["blogs"]["blog"])]
+        
+    @staticmethod
+    def getServices():
+        """ method: flickr.blogs.getServices
+        
+            Return a list of Flickr supported blogging services
+        
+        Authentication:
+            This method does not require authentication.
+        """
+        r = method_call.call_api(method = "flickr.photos.blogs.getServices")
+        return [ BlogService(**s) for s in _check_list(r["services"]["service"]) ]
+
+    def postPhoto(self,**args):
+        """ method: flickr.blogs.postPhoto
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            photo_id (Required)
+                The id of the photo to blog
+            title (Required)
+                The blog post title
+            description (Required)
+                The blog post body
+            blog_password (Optional)
+                The password for the blog (used when the blog does not have 
+                a stored password).
+            service (Optional)
+                A Flickr supported blogging service. Instead of passing a 
+                blog id you can pass a service id and we'll post to the first 
+                blog of that service we find. 
+        """
+        
+        try : args["photo_id"] = args.pop("photo").id
+        except KeyError : pass
+        r = method_call.call_api(method = "flickr.photos.blogs.getServices",auth_handler = AUTH_HANDLER,**args)
+
+class BlogService(FlickrObject):
+    __display__ = ["id","text"]    
+
+class Collection(FlickrObject):
+    __display__ = ["id","title"]
     def getInfo(self):
-        """
-            Returns object information as a dictionnary
-        """
-        return { "loaded" : True}
+        """ method: flickr.collections.getInfo
+            
+            Returns information for a single collection. Currently can 
+            only be called by the collection owner, this may change.
         
-    def load(self):
-        props = self.getInfo()
-        self._set_properties(**props)
+        Authentication:
+
+            This method requires authentication with 'read' permission.
+        """
         
+        r = method_call.call_api(method = "flickr.collections.getInfo",collection_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        
+        collection = r["collection"]
+        icon_photos = _check_list(collection["iconphotos"]["photo"])
+        photos = []
+        for p in photos :
+            p["owner"] = Person(p["owner"])
+            photos.append(Photo(**p))
+        collection["iconphotos"] = photos
+        return Collection(**collection)
     
+    @staticmethod
+    def getTree(**args):
+        """ method: flickr.collections.getTree
+        
+        Returns a tree (or sub tree) of collections belonging to a given user.
+    
+    Authentication:
+
+        This method does not require authentication.
+    
+    Arguments:
+        collection_id (Optional)
+            The ID of the collection to fetch a tree for, or zero to fetch the root collection. Defaults to zero.
+        user_id (Optional)
+            The ID of the account to fetch the collection tree for. Deafults to the calling user. 
+        
+        """
+        
+        try : args["collection_id"] = args.pop("collection").id
+        except KeyError : pass
+        
+        try : args["user_id"] = args.pop("user").id
+        except KeyError : pass
+        
+        r = method_call.call_api(method = "flickr.collections.getTree",auth_handler = AUTH_HANDLER,**args)
+
+        collections = _check_list(r["collections"])
+        collections_ = []
+        for c in collections :
+            sets = _check_list(c.pop("set"))
+            sets_ = [ PhotoSet(**s) for s in sets]
+            collections_.append(Collection(sets = sets_,**c))
+        return collections_
+
+class Group(FlickrObject):
+    __converters__ = [
+        dict_converter(["members","privacy"],int),
+        dict_converter(["admin","eighteenplus","invistation_only"],bool)
+    ]
+    __display__ = ["id","name"]
+    pass
+
+
+class Info(FlickrObject):
+    __converters__ = [
+        dict_converter(["page","perpage","pages","total"],int)
+    
+    ]
+    __display__ = ["page","perpage","pages","total"]
+    pass
+
+class Licence(FlickrObject):
+    __display__ = ["id","name"]
+    
+    @staticmethod
+    def getList():
+        """ method: flickr.photos.licenses.getInfo
+        
+        Fetches a list of available photo licenses for Flickr.
+        
+    Authentication:
+        This method does not require authentication.
+        """
+
+        r = method_call.call_api(method = "flickr.photos.licences.getInfo")
+        licences = r["licences"]["licence"]
+        if not isinstance(licences):
+            licences = [licences]
+        return [Licence(**l) for l in licences]
+
+class Location(FlickrObject):
+    __display__ = ["latitude","longitude","accuracy"]
+    __converters__ = [
+        dict_converter(["latitude","longitude"],float),
+        dict_converter(["accuracy"],int),
+    ]
+
+
+class Note(FlickrObject):
+    __display__ = ["id","text"]
+    def edit(self,**args):
+        """ method: flickr.photos.notes.edit
+            Edit a note on a photo. Coordinates and sizes are in pixels, based on the 500px image size shown on individual photo pages.
+            
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+    
+        Arguments:
+            note_x (Required)
+                The left coordinate of the note
+            note_y (Required)
+                The top coordinate of the note
+            note_w (Required)
+                The width of the note
+            note_h (Required)
+                The height of the note
+            note_text (Required)
+                The description of the note 
+        
+        """
+        r = method_call.call_api(method = "flickr.photos.notes.edit",node_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        return r
+    
+    def delete(self):
+        """ method :flickr.photos.notes.delete
+            Delete a note from a photo.
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        """
+        r = method_call.call_api(method = "flickr.photos.notes.delete",node_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        return r
+
 class Person(FlickrObject):
-    
+    __converters__ = [
+        dict_converter(["ispro"],bool),
+    ]
+    __display__ = ["id","username"]
     @staticmethod
     def findByEmail(find_email):
         """
@@ -59,12 +351,15 @@ class Person(FlickrObject):
             
             Arguments :
                 find_email (Required)
-                    The email address of the user to find (may be primary or secondary).
+                    The email address of the user to find (may be primary 
+                    or secondary).
                     
             Returns :
                 The found user object
         """        
-    
+        r = method_call.call_api(method = "flickr.people.findByEmail", find_email = find_email,auth_handler = AUTH_HANDLER)
+        return Person(**r["user"])
+
     @staticmethod
     def findByUserName(username):
         """
@@ -85,18 +380,27 @@ class Person(FlickrObject):
             """
         r = method_call.call_api(method = "flickr.people.findByUsername", username = username,auth_handler = AUTH_HANDLER)
         user = r["user"]
-        user["username"] = user["username"]["_content"]
-        user_id = user.pop("id")
-        user[u"object_id"] = user_id
-        return Person(**user)
-  
+        return Person(**r["user"])
+
+    def getInfo(self,**args):
+        
+        r = method_call.call_api(method = "flickr.people.getInfo", user_id = self.id ,auth_handler = AUTH_HANDLER)
+
+        user = r["person"]
+        user["photos"] = FlickrDictObject("person",user["photos"])
+        return user
+
     def getPhotos(self,**args):
         """
             method = "flickr.people.getPhotos"
             
-            Return photos from the given user's photostream. Only photos visible to the calling user will be returned. This method must be authenticated; to return public photos for a user, use flickr.people.getPublicPhotos.
+                Return photos from the given user's photostream. Only photos 
+                visible to the calling user will be returned. This method must 
+                be authenticated; to return public photos for a user, use 
+                flickr.people.getPublicPhotos.
             
-            Authentification : Cette méthode exige une authentification avec autorisation de lecture.
+            Authentification : Cette méthode exige une authentification avec 
+            autorisation de lecture.
             
             Arguments :
               safe_search (Facultatif)
@@ -107,13 +411,21 @@ class Person(FlickrObject):
                     (Please note: Un-authed calls can only see Safe content.)
 
                 min_upload_date (Facultatif)
-                    Minimum upload date. Photos with an upload date greater than or equal to this value will be returned. The date should be in the form of a unix timestamp.
+                    Minimum upload date. Photos with an upload date greater 
+                    than or equal to this value will be returned. The date 
+                    should be in the form of a unix timestamp.
                 max_upload_date (Facultatif)
-                    Maximum upload date. Photos with an upload date less than or equal to this value will be returned. The date should be in the form of a unix timestamp.
+                    Maximum upload date. Photos with an upload date less 
+                    than or equal to this value will be returned. The date 
+                    should be in the form of a unix timestamp.
                 min_taken_date (Facultatif)
-                    Minimum taken date. Photos with an taken date greater than or equal to this value will be returned. The date should be in the form of a mysql datetime.
+                    Minimum taken date. Photos with an taken date greater 
+                    than or equal to this value will be returned. The date 
+                    should be in the form of a mysql datetime.
                 max_taken_date (Facultatif)
-                    Maximum taken date. Photos with an taken date less than or equal to this value will be returned. The date should be in the form of a mysql datetime.
+                    Maximum taken date. Photos with an taken date less than 
+                    or equal to this value will be returned. The date should 
+                    be in the form of a mysql datetime.
                 content_type (Facultatif)
                     Content Type setting:
 
@@ -126,7 +438,9 @@ class Person(FlickrObject):
                         * 7 for photos, screenshots, and 'other' (all).
 
                 privacy_filter (Facultatif)
-                    Return photos only matching a certain privacy level. This only applies when making an authenticated call to view photos you own. Valid values are:
+                    Return photos only matching a certain privacy level. 
+                    This only applies when making an authenticated call 
+                    to view photos you own. Valid values are:
 
                         * 1 public photos
                         * 2 private photos visible to friends
@@ -135,11 +449,19 @@ class Person(FlickrObject):
                         * 5 completely private photos
 
                 extras (Facultatif)
-                    A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
+                    A comma-delimited list of extra information to fetch 
+                    for each returned record. Currently supported fields 
+                    are: description, license, date_upload, date_taken, 
+                    owner_name, icon_server, original_format, last_update, 
+                    geo, tags, machine_tags, o_dims, views, media, path_alias, 
+                    url_sq, url_t, url_s, url_m, url_z, url_l, url_o
                 per_page (Facultatif)
-                    Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
+                    Number of photos to return per page. If this argument 
+                    is omitted, it defaults to 100. The maximum allowed 
+                    value is 500.
                 page (Facultatif)
-                    The page of results to return. If this argument is omitted, it defaults to 1.
+                    The page of results to return. If this argument is 
+                    omitted, it defaults to 1.
                     
             returns :
                 (photo_list,info)
@@ -149,27 +471,8 @@ class Person(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.people.getPhotos", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
 
-        photoset = base.FlickrDictObject("photos",r["photos"])
-        photos = []
-        for p in  photoset.photo :
-            photos.append(Photo(
-                object_id = p.id,
-                secret = p.secret,
-                title = p.title,
-                farm = p.farm,
-                server = p.server,
-                is_friend = bool(p.isfriend),
-                is_public = bool(p.ispublic),
-                is_family = bool(p.isfamily),
-                owner = Person(p.owner)))
-        return (photos,{
-            'page' : photoset.page,
-            'pages' : photoset.pages,
-            'per_page' : photoset.perpage,
-            'total' : photoset.total
-            })
-                
-    
+        return _extract_photo_list(r)
+
     def getPublicPhotos(self):
         """    method = "flickr.people.getPublicPhotos"
             
@@ -187,13 +490,21 @@ class Person(FlickrObject):
 
                     (Please note: Un-authed calls can only see Safe content.)
                 min_upload_date (Facultatif)
-                    Minimum upload date. Photos with an upload date greater than or equal to this value will be returned. The date should be in the form of a unix timestamp.
+                    Minimum upload date. Photos with an upload date greater 
+                    than or equal to this value will be returned. The date 
+                    should be in the form of a unix timestamp.
                 max_upload_date (Facultatif)
-                    Maximum upload date. Photos with an upload date less than or equal to this value will be returned. The date should be in the form of a unix timestamp.
+                    Maximum upload date. Photos with an upload date less 
+                    than or equal to this value will be returned. The date 
+                    should be in the form of a unix timestamp.
                 min_taken_date (Facultatif)
-                    Minimum taken date. Photos with an taken date greater than or equal to this value will be returned. The date should be in the form of a mysql datetime.
+                    Minimum taken date. Photos with an taken date greater 
+                    than or equal to this value will be returned. The date 
+                    should be in the form of a mysql datetime.
                 max_taken_date (Facultatif)
-                    Maximum taken date. Photos with an taken date less than or equal to this value will be returned. The date should be in the form of a mysql datetime.
+                    Maximum taken date. Photos with an taken date less than 
+                    or equal to this value will be returned. The date should 
+                    be in the form of a mysql datetime.
                 content_type (Facultatif)
                     Content Type setting:
 
@@ -206,7 +517,9 @@ class Person(FlickrObject):
                         * 7 for photos, screenshots, and 'other' (all).
 
                 privacy_filter (Facultatif)
-                    Return photos only matching a certain privacy level. This only applies when making an authenticated call to view photos you own. Valid values are:
+                    Return photos only matching a certain privacy level. 
+                    This only applies when making an authenticated call 
+                    to view photos you own. Valid values are:
 
                         * 1 public photos
                         * 2 private photos visible to friends
@@ -215,11 +528,19 @@ class Person(FlickrObject):
                         * 5 completely private photos
 
                 extras (Facultatif)
-                    A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
+                    A comma-delimited list of extra information to fetch 
+                    for each returned record. Currently supported fields 
+                    are: description, license, date_upload, date_taken, 
+                    owner_name, icon_server, original_format, last_update, 
+                    geo, tags, machine_tags, o_dims, views, media, path_alias, 
+                    url_sq, url_t, url_s, url_m, url_z, url_l, url_o
                 per_page (Facultatif)
-                    Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
+                    Number of photos to return per page. If this argument 
+                    is omitted, it defaults to 100. The maximum allowed 
+                    value is 500.
                 page (Facultatif)
-                    The page of results to return. If this argument is omitted, it defaults to 1.
+                    The page of results to return. If this argument is 
+                    omitted, it defaults to 1.
                     
             returns :
                 (photo_list,info)
@@ -227,42 +548,35 @@ class Person(FlickrObject):
                 info is a tuple with information about the request.
         """
         r = method_call.call_api(method = "flickr.people.getPublicPhotos", user_id = self.id ,auth_handler = AUTH_HANDLER)
-        photoset = base.FlickrDictObject("photos",r["photos"])
-        photos = []
-        for p in  photoset.photo :
-            photos.append(Photo(
-                object_id = p.id,
-                secret = p.secret,
-                title = p.title,
-                farm = p.farm,
-                server = p.server,
-                is_friend = bool(p.isfriend),
-                is_public = bool(p.ispublic),
-                is_family = bool(p.isfamily),
-                owner = Person(p.owner)))
-        return (photos,{
-            'page' : photoset.page,
-            'pages' : photoset.pages,
-            'per_page' : photoset.perpage,
-            'total' : photoset.total
-            })
+        return _extract_photo_list(r)
 
     def getPhotosOf(self,owner):
         """ method :flickr.people.getPhotosOf
-                Returns a list of photos containing a particular Flickr member.
+                Returns a list of photos containing a particular Flickr 
+                member.
                 
             Authentication:
                 This method does not require authentication.
                 
             Arguments:
                 owner_id (Optional)
-                    An NSID of a Flickr member. This will restrict the list of photos to those taken by that member.
+                    An NSID of a Flickr member. This will restrict the list 
+                    of photos to those taken by that member.
                 extras (Optional)
-                    A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, date_person_added, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
+                    A comma-delimited list of extra information to fetch 
+                    for each returned record. Currently supported fields 
+                    are: description, license, date_upload, date_taken, 
+                    date_person_added, owner_name, icon_server, 
+                    original_format, last_update, geo, tags, machine_tags, 
+                    o_dims, views, media, path_alias, url_sq, url_t, url_s, 
+                    url_m, url_z, url_l, url_o
                 per_page (Optional)
-                    Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
+                    Number of photos to return per page. If this argument 
+                    is omitted, it defaults to 100. The maximum allowed 
+                    value is 500.
                 page (Optional)
-                    The page of results to return. If this argument is omitted, it defaults to 1. 
+                    The page of results to return. If this argument is 
+                    omitted, it defaults to 1. 
         """
         
         try :
@@ -271,34 +585,7 @@ class Person(FlickrObject):
             owner_id = id
         
         r = method_call.call_api(method = "flickr.people.getPhotosOf", user_id = self.id ,auth_handler = AUTH_HANDLER)
-        photoset = base.FlickrDictObject("photos",r["photos"])
-        photos = []
-        for p in  photoset.photo :
-            photos.append(Photo(
-                object_id = p.id,
-                secret = p.secret,
-                title = p.title,
-                farm = p.farm,
-                server = p.server,
-                is_friend = bool(p.isfriend),
-                is_public = bool(p.ispublic),
-                is_family = bool(p.isfamily),
-                owner = Person(p.owner)))
-        try :
-            info = {
-                'total' : photoset.total,
-                'page' : photoset.page,
-                'pages' : photoset.pages,
-                'per_page' : photoset.perpage,
-            }
-        except AttributeError :
-            info = {
-                'page' : photoset.page,
-                'per_page' : photoset.perpage,
-                'has_next_page' : photoset.has_next_page
-            }
-
-        return (photos,info)
+        return _extract_photo_list(r)
 
     def getPublicGroups(self,**args):
         """ method : flickr.people.getPublicGroups
@@ -309,25 +596,18 @@ class Person(FlickrObject):
             
             Arguments:
                 invitation_only (Optional)
-                    Include public groups that require an invitation or administrator approval to join. 
+                    Include public groups that require an invitation or 
+                    administrator approval to join. 
         """
         
         r = method_call.call_api(method = "flickr.people.getPublicGroups", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
 
-        groups = base.FlickrDictObject("groups",r["groups"]).group
+        groups = r["groups"]["group"]
         
         groups_ = []
         for gr in groups :
-            groups_.append(
-                Group(
-                    object_id = gr.nsid,
-                    nsid = gr.nsid,
-                    name = gr.name,
-                    admin = bool(gr.admin),
-                    eighteenplus = bool(gr.eighteenplus),
-                    invitation_only = bool(gr.invitation_only)
-                )
-            )
+            gr["id"] = gr["nsid"]
+            groups_.append(Group(**gr))
         return groups_
 
 
@@ -350,44 +630,122 @@ class Person(FlickrObject):
         
         Arguments:
             count (Optional)
-                Number of photos to return. Defaults to 10, maximum 50. This is only used if single_photo is not passed.
+                Number of photos to return. Defaults to 10, maximum 50. 
+                This is only used if single_photo is not passed.
             just_friends (Optional)
-                set as 1 to only show photos from friends and family (excluding regular contacts).
+                set as 1 to only show photos from friends and family 
+                (excluding regular contacts).
             single_photo (Optional)
-                Only fetch one photo (the latest) per contact, instead of all photos in chronological order.
+                Only fetch one photo (the latest) per contact, instead 
+                of all photos in chronological order.
             include_self (Optional)
-                Set to 1 to include photos from the user specified by user_id.
+                Set to 1 to include photos from the user specified by 
+                user_id.
             extras (Optional)
-                A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: license, date_upload, date_taken, owner_name, icon_server, original_format, last_update. 
+                A comma-delimited list of extra information to fetch for 
+                each returned record. Currently supported fields are: license, 
+                date_upload, date_taken, owner_name, icon_server, 
+                original_format, last_update. 
         
         """
         r = method_call.call_api(method = "flickr.photos.getContactsPublicPhotos", user_id = self.id, auth_handler = AUTH_HANDLER,**args)
-        photos = base.FlickrDictObject("photos",r["photos"]).photo
-        photos_ = []
-        for p in photos :
-            props = {
-                "id" : p.id ,
-                "title" : p.title,
-                "secret" : p.secret,
-                "farm" : p.farm,
-                "server" : p.server,
-                "is_family" : p.isfamily,
-                "is_friend" : p.isfriend,
-                "is_public" : p.ispublic,
-                "owner" : Person(p.owner,username = p.username)
-            }
-            photos_.append(Photo("",**props))
-        return photos_
-        
+        return _extract_photo_list(r)
+
 class Tag(FlickrObject):
     
     def remove(self):
         r = method_call.call_api(method = "flickr.photos.removeTag", tag_id = self.id,auth_handler = AUTH_HANDLER)
         return r
 
-    
 
 class Photo(FlickrObject):
+    __converters__ = [
+        dict_converter(["isfamily","ispublic","isfriend","cancomment","canaddmeta","permcomment","permmeta","isfavorite"],bool),
+        dict_converter(["posted","lastupdate"],int),
+        dict_converter(["views","comments"],int),
+    ]
+    __display__ = ["id","title"]
+    
+    def addComment(self,**args):
+        """ method: flickr.photos.comments.addComment
+        
+            Add comment to a photo as the currently authenticated user.
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+
+        Arguments:
+            comment_text (Required)
+                Text of the comment 
+        """
+
+        r = method_call.call_api(method = "flickr.photos.comments.addComment", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        args["id"] = r["comment"]["id"]
+        args["photo"] = self
+        return PhotoComment(**args)
+
+    def addNote(self,**args):
+        """ method: flickr.photos.notes.add
+            Add a note to a photo. Coordinates and sizes are in pixels, 
+            based on the 500px image size shown on individual photo pages.
+            
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            note_x (Required)
+                The left coordinate of the note
+            note_y (Required)
+                The top coordinate of the note
+            note_w (Required)
+                The width of the note
+            note_h (Required)
+                The height of the note
+            note_text (Required)
+                The description of the note 
+        """
+        r = method_call.call_api(method = "flickr.photos.notes.add", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        args["id"] = r["note"]["id"]
+        args["photo"] = self
+        return Note(**args)
+
+    def addPerson(self,**args):
+        """ method: flickr.photos.people.add
+        
+            Add a person to a photo. Coordinates and sizes of boxes are 
+            optional; they are measured in pixels, based on the 500px image 
+            size shown on individual photo pages.
+            
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            user_id (Required)
+                The NSID of the user to add to the photo.
+            person_x (Optional)
+                The left-most pixel co-ordinate of the box around the person.
+            person_y (Optional)
+                The top-most pixel co-ordinate of the box around the person.
+            person_w (Optional)
+                The width (in pixels) of the box around the person.
+            person_h (Optional)
+                The height (in pixels) of the box around the person. 
+        """
+        try :
+            user_id = args.pop("user_id").id
+        except KeyError :
+            user_id = args["user_id"]
+
+        r = method_call.call_api(method = "flickr.photos.people.add", photo_id = self.id, user_id = user_id,auth_handler = AUTH_HANDLER,**args)
+        return PhotoPerson(id = user_id,**args)
+
     def addTags(self,tags):
          """ method : flickr.photos.addTags
                 Add tags to a photo.
@@ -408,7 +766,102 @@ class Photo(FlickrObject):
          
          r = method_call.call_api(method = "flickr.photos.addTags", photo_id = self.id, tags = tags,auth_handler = AUTH_HANDLER)
          return r
-         
+
+    @staticmethod
+    def batchCorrectLocation(**args):
+        """ method: flickr.photos.geo.batchCorrectLocation
+            Correct the places hierarchy for all the photos for a user at 
+            a given latitude, longitude and accuracy.
+
+            Batch corrections are processed in a delayed queue so it may 
+            take a few minutes before the changes are reflected in a user's 
+            photos.
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            lat (Required)
+                The latitude of the photos to be update whose valid range 
+                is -90 to 90. Anything more than 6 decimal places will 
+                be truncated.
+            lon (Required)
+                The longitude of the photos to be updated whose valid range 
+                is -180 to 180. Anything more than 6 decimal places will 
+                be truncated.
+            accuracy (Required)
+                Recorded accuracy level of the photos to be updated. World 
+                level is 1, Country is ~3, Region ~6, City ~11, Street ~16. 
+                Current range is 1-16. Defaults to 16 if not specified.
+            place_id (Optional)
+                A Flickr Places ID. (While optional, you must pass either 
+                a valid Places ID or a WOE ID.)
+            woe_id (Optional)
+                A Where On Earth (WOE) ID. (While optional, you must pass 
+                either a valid Places ID or a WOE ID.)                     
+        """
+        
+        try :
+            place = args.pop("place")
+            if isinstance(place,Place):
+                args["place_id"] = place.id
+            else :
+                args["place_id"] = place
+        except KeyError : pass
+        r = method_call.call_api(method = "flickr.photos.geo.batchCorrectLocation", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+
+    def correctLocation(self,**args):
+        """ method: flickr.photos.geo.correctLocation
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            place_id (Optional)
+                A Flickr Places ID. (While optional, you must pass either 
+                a valid Places ID or a WOE ID.)
+            woe_id (Optional)
+                A Where On Earth (WOE) ID. (While optional, you must pass 
+                either a valid Places ID or a WOE ID.)
+      
+        """
+        try :
+            place = args.pop("place")
+            if isinstance(place,Place):
+                args["place_id"] = place.id
+            else :
+                args["place_id"] = place
+        except KeyError : pass
+        r = method_call.call_api(method = "flickr.photos.geo.batchCorrectLocation", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+
+    @staticmethod
+    def checkUploadTickets(self,tickets):
+        """ method: flickr.photos.upload.checkTickets
+        
+            Checks the status of one or more asynchronous photo upload tickets.
+        
+        Authentication:
+
+            This method does not require authentication.
+        
+        Arguments:
+            tickets (Required)
+                A comma-delimited list of ticket ids
+        """
+        if isinstance(tickets,list):
+            tickets = [ t.id if isinstance(t,UploadTicket) else t for t in tickets]
+        tickets = ",".joint(tickets)
+        
+        r = method_call.call_api(method = "flickr.photos.upload.checkTickets")
+        tickets = r["wrapper"]["uploader"]["ticket"]
+        if not isinstance(tickets,list):
+            tickets = [tickets]
+        return [UploadTicket(**t) for t in tickets]
+
     def delete(self):
         """ method: flickr.photos.delete
             Delete a photo from flickr.
@@ -432,15 +885,41 @@ class Photo(FlickrObject):
         photosets = []
         if r.has_key("set"):
             for s in r["set"]:
-                photosets.append(PhotoSet("",**s))
+                photosets.append(PhotoSet(**s))
         pools = []
         if r.has_key("pool"):
             for p in r["pool"]:
-                pools.append(Pool("",**p))
-                
-            
+                pools.append(Pool(**p))
+
         return photosets,pools
     
+    def getCommentList(self,**args):
+        """ method: flickr.photos.comments.getList
+            Returns the comments for a photo
+        
+        Authentication:
+            This method does not require authentication.
+        
+        Arguments:
+            min_comment_date (Optional)
+                Minimum date that a a comment was added. The date should 
+                be in the form of a unix timestamp.
+            max_comment_date (Optional)
+                Maximum date that a comment was added. The date should be 
+                in the form of a unix timestamp. 
+        """
+        r = method_call.call_api(method = "flickr.photos.comments.getList", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        comments = r["comments"]["comment"]
+        comments_ = []
+        if not isinstance(comments,list):
+            comments = [comments]
+        for c in comments :
+            author = c["author"]
+            authorname = c.pop("authorname")
+            c["author"] = Person(id = author,username = authorname)
+            comments_.append(PhotoComment(photo = self,**c))
+        return comments_
+
     @staticmethod
     def getContactsPhotos(**args):
         """ method: flickr.photos.getContactsPhotos
@@ -451,84 +930,56 @@ class Photo(FlickrObject):
         
         Arguments:
             count (Optional)
-                Number of photos to return. Defaults to 10, maximum 50. This is only used if single_photo is not passed.
+                Number of photos to return. Defaults to 10, maximum 50. 
+                This is only used if single_photo is not passed.
             just_friends (Optional)
-                set as 1 to only show photos from friends and family (excluding regular contacts).
+                set as 1 to only show photos from friends and family 
+                (excluding regular contacts).
             single_photo (Optional)
-                Only fetch one photo (the latest) per contact, instead of all photos in chronological order.
+                Only fetch one photo (the latest) per contact, instead of 
+                all photos in chronological order.
             include_self (Optional)
                 Set to 1 to include photos from the calling user.
             extras (Optional)
-                A comma-delimited list of extra information to fetch for each returned record. Currently supported fields 
-                include: license, date_upload, date_taken, owner_name, icon_server, original_format, last_update. For more
+                A comma-delimited list of extra information to fetch for 
+                each returned record. Currently supported fields 
+                include: license, date_upload, date_taken, owner_name, 
+                icon_server, original_format, last_update. For more
                 information see extras under flickr.photos.search. 
         """
         r = method_call.call_api(method = "flickr.photos.getContactsPhotos", auth_handler = AUTH_HANDLER,**args)
-        photos = base.FlickrDictObject("photos",r["photos"]).photo
+        photos = r["photos"]["photo"]
         photos_ = []
         for p in photos :
-            props = {
-                "id" : p.id ,
-                "title" : p.title,
-                "secret" : p.secret,
-                "farm" : p.farm,
-                "server" : p.server,
-                "is_family" : p.isfamily,
-                "is_friend" : p.isfriend,
-                "is_public" : p.ispublic,
-                "owner" : Person(p.owner,username = p.username)
-            }
-            photos_.append(Photo("",**props))
+            photos_.append(Photo(**p))
         return photos_
     
-
-
     def getInfo(self):
         """
             method : flickr.photos.getInfo
         """
     
         r = method_call.call_api(method = "flickr.photos.getInfo", photo_id = self.id)
-        photo = base.FlickrDictObject("photo",r["photo"])
+        photo = r["photo"]
         
-        props = {
-            'loaded' : True,
-            'title' : photo.title._content,
-            'description' : photo.description._content,
-            'secret' : photo.secret,
-            'farm' : photo.farm,
-            'server' : photo.server,
+        owner = photo["owner"]
+        owner["id"] = owner["nsid"]
+        photo["owner"] = Person(**owner)
+        
+        photo.update(photo.pop("usage"))
+        photo.update(photo.pop("visibility"))
+        photo.update(photo.pop("publiceditability"))
+        photo.update(photo.pop("dates"))
+        
+        tags = []
+        for t in _check_list(photo["tags"]["tag"])  :
+            t["author"] = Person(id = t.pop("author"))
+            tags.append(Tag(**t))
             
-            'owner' : Person(photo.owner.nsid,
-                             nsid = photo.owner.nsid,
-                             iconfarm = photo.owner.iconfarm,
-                             iconserver = photo.owner.iconserver,
-                             realname = photo.owner.realname,
-                             username = photo.owner.username),
-            'is_favorite' : int(photo.isfavorite),
-            'date_uploaded' : int(photo.dateuploaded),
-            
-            'can_blog' : bool(photo.usage.canblog),
-            'can_download' : bool(photo.usage.candownload),
-            'can_print' : bool(photo.usage.canprint),
-            'can_share' : bool(photo.usage.canshare),
-            
-            'nviews' : int(photo.views),
-            'ncomments' : int(photo.comments._content),
-            
-            'is_family' : bool(photo.visibility.isfamily),
-            'is_friend' : bool(photo.visibility.isfriend),
-            'is_public' : bool(photo.visibility.ispublic),
-            
-            'can_add_meta' : bool(photo.publiceditability.canaddmeta),
-            'can_comment ' : bool(photo.publiceditability.cancomment),
-            'url' : photo.urls.url[0]._content,
-            'rotation' : float(photo.rotation),
-            'safety_level' : photo.safety_level,
-       
-            'tags' : [ Tag(t.id, value = t._content, author = Person(t.author), machine_tag = t.machine_tag, raw = t.raw) for t in photo.tags.tag ],
-        }
-        return props
+        photo["tags"] = tags        
+        notes = [Note(**n) for n in _check_list(photo["notes"]["note"])]
+        
+        return photo
 
     def getContext(self):
         """ method: flickr.photos.getContext
@@ -539,21 +990,26 @@ class Photo(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.photos.getContext", photo_id = self.id,auth_handler = AUTH_HANDLER)
 
-        return Photo("",**r["prevphoto"]),Photo("",**r["nextphoto"])
+        return Photo(**r["prevphoto"]),Photo("",**r["nextphoto"])
 
     @staticmethod
     def getCounts(**args):
         """ method: flickr.photos.getCounts
-            Gets a list of photo counts for the given date ranges for the calling user.
+            Gets a list of photo counts for the given date ranges for 
+            the calling user.
             
         Authentication:
             This method requires authentication with 'read' permission.
         
         Arguments:
             dates (Optional)
-                A comma delimited list of unix timestamps, denoting the periods to return counts for. They should be specified smallest first.
+                A comma delimited list of unix timestamps, denoting the 
+                periods to return counts for. They should be specified 
+                smallest first.
             taken_dates (Optional)
-                A comma delimited list of mysql datetimes, denoting the periods to return counts for. They should be specified smallest first. 
+                A comma delimited list of mysql datetimes, denoting the 
+                periods to return counts for. They should be specified 
+                smallest first. 
                     
         """
         r = method_call.call_api(method = "flickr.photos.getCounts", auth_handler = AUTH_HANDLER, **args)
@@ -561,7 +1017,8 @@ class Photo(FlickrObject):
 
     def getExif(self):
         """ method: flickr.photos.getExif
-            Retrieves a list of EXIF/TIFF/GPS tags for a given photo. The calling user must have permission to view the photo.
+            Retrieves a list of EXIF/TIFF/GPS tags for a given photo. 
+            The calling user must have permission to view the photo.
             
         Authentication:
             This method does not require authentication.
@@ -582,26 +1039,52 @@ class Photo(FlickrObject):
         
         Arguments:
             page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1.
+                The page of results to return. If this argument is omitted, 
+                it defaults to 1.
             per_page (Optional)
-                Number of usres to return per page. If this argument is omitted, it defaults to 10. The maximum allowed value is 50.
-        
+                Number of users to return per page. If this argument is 
+                omitted, it defaults to 10. The maximum allowed value is 50.
         """
+
         r = method_call.call_api(method = "flickr.photos.getFavorites", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
         
-        persons = []
-        for p in r["photo"]["person"] :
-            persons.append(Person(p["nsid"],**p))
+        
         photo = r["photo"]
-        infos = {
-            "page" : photo["page"],
-            "per_page" : photo["perpage"],
-            "pages" : photo["pages"],
-            "total" : photo["total"]
-        }
+        persons = photo.pop("person")
+        persons_ = []
+        if not isinstance(persons,list):
+            persons = [persons]
+        for p in r["photo"]["person"] :
+            p["id"] = p["nsid"]
+            persons_.append(Person(**p))
+        infos = FlickrDictObject(photo)
+        return persons_,infos
+    
+    def getGeoPerms(self):
+        """ method: flickr.photos.geo.getPerms
         
-        return persons,infos
+            Get permissions for who may view geo data for a photo.
         
+        Authentication:
+            This method requires authentication with 'read' permission.
+        """
+        
+        r = method_call.call_api(method = "flickr.photos.geo.getPerms", photo_id = self.id,auth_handler = AUTH_HANDLER)
+        return GeoPerms(r["perms"])
+
+    def getLocation(self):
+        """ method: flickr.photos.geo.getLocation
+            Get the geo data (latitude and longitude and the accuracy 
+            level) for a photo.
+            
+        Authentication:
+            This method does not require authentication.
+        
+        """
+        r = method_call.call_api(method = "flickr.photos.geo.getLocation", photo_id = self.id)
+        loc = r["photo"]["location"]
+        return Location(photo = self, **loc)
+
     @staticmethod
     def getNotInSet(**args):
         """ method: flickr.photos.getNotInSet
@@ -661,6 +1144,7 @@ class Photo(FlickrObject):
         return _extract_photo_list(r)
 
 
+
     @staticmethod
     def getRecent(**args):
         """ method: flickr.photos.getRecent -> photos,infos
@@ -672,11 +1156,19 @@ class Photo(FlickrObject):
         
         Arguments:
             extras (Optional)
-                A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
+                A comma-delimited list of extra information to fetch for 
+                each returned record. Currently supported fields are: 
+                description, license, date_upload, date_taken, owner_name, 
+                icon_server, original_format, last_update, geo, tags, 
+                machine_tags, o_dims, views, media, path_alias, url_sq, 
+                url_t, url_s, url_m, url_z, url_l, url_o
             per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
+                Number of photos to return per page. If this argument is 
+                omitted, it defaults to 100. The maximum allowed value is 
+                500.
             page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1. 
+                The page of results to return. If this argument is omitted, 
+                it defaults to 1. 
                     
         """
         r = method_call.call_api(method = "flickr.photos.getRecent", auth_handler = AUTH_HANDLER,**args)
@@ -687,12 +1179,13 @@ class Photo(FlickrObject):
     def getSizes(self):
         """ method: flickr.photos.getSizes
 
-            Returns the available sizes for a photo. The calling user must have permission to view the photo.
+            Returns the available sizes for a photo. The calling user must 
+            have permission to view the photo.
         
         Authentication:
             This method does not require authentication.
         """
-        r = method_call.call_api(method = "flickr.photos.getSizes", photo_id, self.id, auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photos.getSizes", photo_id = self.id, auth_handler = AUTH_HANDLER)
         
         return r["sizes"]["size"]
         
@@ -868,6 +1361,26 @@ class Photo(FlickrObject):
             
         return _extract_photo_list(r)
 
+    def getPeopleList(self,**args):
+        """ method: flickr.photos.people.getList
+            Get a list of people in a given photo.
+            
+        Authentication:
+            This method does not require authentication.
+        """
+        r = method_call.call_api(method = "flickr.photos.people", auth_handler = AUTH_HANDLER,**args)
+        
+        info = r["people"]
+        people = info.pop("person")
+        people_ = []
+        if not isinstance(people,Person):
+            people = [people]
+        for p in people :
+            p["id"] = p["nsid"]
+            p["photo"] = self
+            people_.append(PhotoPerson(**p))
+        return people_
+
     @staticmethod
     def recentlyUpdated(**args):
         """ method: flickr.photos.recentlyUpdated
@@ -905,6 +1418,38 @@ class Photo(FlickrObject):
         r = method_call.call_api(method = "flickr.photos.recentlUpdated", auth_handler = AUTH_HANDLER,**args)
             
         return _extract_photo_list(r)
+    
+    def removeLocation(self):
+        """ method: flickr.photos.geo.removeLocation
+            Removes the geo data associated with a photo.
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        """
+        r = method_call.call_api(method = "flickr.photos.geo.removeLocation",photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+
+    def rotate(self,degrees):
+        """ method:flickr.photos.transform.rotate
+            Rotate a photo.
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            degrees (Required)
+                The amount of degrees by which to rotate the photo (clockwise)
+                from it's current orientation. Valid values are 90, 180 and 270.
+        """
+
+        r = method_call.call_api(method = "flickr.photos.geo.removeLocation",photo_id = self.id, degrees = degrees, auth_handler = AUTH_HANDLER)
+        photo_id  = r["photo_id"]["_content"]
+        photo_secret = r["photo_id"]["secret"]
+        return Photo(id = photo_id, secret = photo_secret)
 
     @staticmethod
     def search(self,**args):
@@ -1194,6 +1739,35 @@ class Photo(FlickrObject):
         r = method_call.call_api(method = "flickr.photos.search", auth_handler = AUTH_HANDLER,**args)            
         return _extract_photo_list(r)
 
+    def setContext(self,context):
+        """ method: flickr.photos.geo.setContext
+            Indicate the state of a photo's geotagginess beyond latitude 
+            and longitude.
+
+            Note : photos passed to this method must already be geotagged 
+            (using the "flickr.photos.geo.setLocation" method).
+            
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            context (Required)
+                Context is a numeric value representing the photo's 
+                geotagginess beyond latitude and longitude. For example, 
+                you may wish to indicate that a photo was taken "indoors" 
+                or "outdoors".
+
+                The current list of context IDs is :
+
+                    * 0, not defined.
+                    * 1, indoors.
+                    * 2, outdoors.
+
+        """
+        r = method_call.call_api(method = "flickr.photos.search", photo_id = self.id, context = context, auth_handler = AUTH_HANDLER)
+    
     def setContentType(self,**args):
         """ method: flickr.photos.setContentType
             Set the content type of a photo.
@@ -1223,16 +1797,110 @@ class Photo(FlickrObject):
         
         Arguments:
             date_posted (Optional)
-                The date the photo was uploaded to flickr (see the dates documentation)
+                The date the photo was uploaded to flickr (see the dates 
+                documentation)
             date_taken (Optional)
                 The date the photo was taken (see the dates documentation)
             date_taken_granularity (Optional)
-                The granularity of the date the photo was taken (see the dates documentation) 
+                The granularity of the date the photo was taken (see the 
+                dates documentation) 
         
         """
-        r = method_call.call_api(method = "flickr.photos.setDates", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)            
-        return r
+        r = method_call.call_api(method = "flickr.photos.setDates", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+    
+    def setGeoPerms(self,**args):
+        """ method: flickr.photos.geo.setPerms
+
+            Set the permission for who may view the geo data associated 
+            with a photo.
         
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            is_public (Required)
+                1 to set viewing permissions for the photo's location data 
+                to public, 0 to set it to private.
+            is_contact (Required)
+                1 to set viewing permissions for the photo's location data 
+                to contacts, 0 to set it to private.
+            is_friend (Required)
+                1 to set viewing permissions for the photo's location data 
+                to friends, 0 to set it to private.
+            is_family (Required)
+                1 to set viewing permissions for the photo's location data 
+                to family, 0 to set it to private.
+        """
+        r = method_call.call_api(method = "flickr.photos.geo.setPerms", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+
+    def setLicence(self,license):
+        """ method: flickr.photos.licenses.setLicense
+            Sets the license for a photo.
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            license_id (Required)
+                The license to apply, or 0 (zero) to remove the current 
+                license. Note : as of this writing the "no known copyright
+                restrictions" license (7) is not a valid argument. 
+        """
+        if isinstance(license,License):
+            license_id = license.id
+        else :
+            license_id = license
+
+        r = method_call.call_api(method = "flickr.photos.licenses.setLicense", photo_id = self.id, license_id = license_id , auth_handler = AUTH_HANDLER)         
+
+    def setLocation(self,**args):
+        """ method: flickr.photos.geo.setLocation
+    
+            Sets the geo data (latitude and longitude and, optionally, the 
+            accuracy level) for a photo. Before users may assign location
+            data to a photo they must define who, by default, may view that
+            information. Users can edit this preference at 
+            http://www.flickr.com/account/geo/privacy/. If a user has not 
+            set this preference, the API method will return an error.
+            
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            lat (Required)
+                The latitude whose valid range is -90 to 90. Anything more 
+                than 6 decimal places will be truncated.
+            lon (Required)
+                The longitude whose valid range is -180 to 180. Anything 
+                more than 6 decimal places will be truncated.
+            accuracy (Optional)
+                Recorded accuracy level of the location information. World 
+                level is 1, Country is ~3, Region ~6, City ~11, Street ~16. 
+                Current range is 1-16. Defaults to 16 if not specified.
+            context (Optional)
+                Context is a numeric value representing the photo's 
+                geotagginess beyond latitude and longitude. For example, 
+                you may wish to indicate that a photo was taken "indoors" 
+                or "outdoors".
+
+                The current list of context IDs is :
+
+                    * 0, not defined.
+                    * 1, indoors.
+                    * 2, outdoors.
+
+                The default context for geotagged photos is 0, or "not defined" 
+                    
+        """
+        r = method_call.call_api(method = "flickr.photos.geo.setLocation", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        
+
     def setMeta(self,**args):
         """ method: flickr.photos.setMeta
             Set the meta information for a photo.
@@ -1249,7 +1917,6 @@ class Photo(FlickrObject):
                 The description for the photo. 
         """
         r = method_call.call_api(method = "flickr.photos.setMeta", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)            
-        return r
     
     def setPerms(self,**args):
         """ method: flickr.photos.setPerms
@@ -1301,7 +1968,6 @@ class Photo(FlickrObject):
                 searches. Must be either 1 for Yes or 0 for No.                     
         """
         r = method_call.call_api(method = "flickr.photos.setSafetyLevel", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)            
-        return r
 
     def setTags(self,tags):
         """ method: flickr.photos.setTags
@@ -1317,28 +1983,607 @@ class Photo(FlickrObject):
                 All tags for the photo (as a single space-delimited string).        
         """
         r = method_call.call_api(method = "flickr.photos.setTags", photo_id = self.id, auth_handler = AUTH_HANDLER,tags = tags)
+
+class PhotoPerson(Person):
+    __converters__ = [
+        dict_converter(["x","y","h","w"],int)
+    ]
+    __display__ = ["id","photo","username","x","y","h","w"]
+    
+    def delete(self):
+        """ method: flickr.photos.people.delete
+            Remove a person from a photo.
+            
+        Authentication:
+            This method requires authentication with 'write' permission.
+            Note: This method requires an HTTP POST request.
+        """
+        r = method_call.call_api(method = "flickr.photos.people.delete", user_id = self.id, photo_id = self.photo.id,auth_handler = AUTH_HANDLER)
         return r
+    
+    def deleteCoords(self):
+        """ method: flickr.photos.people.deleteCoords
+            Remove the bounding box from a person in a photo
+            
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        """
+        r = method_call.call_api(method = "flickr.photos.people.deleteCoords", user_id = self.id, photo_id = self.photo.id,auth_handler = AUTH_HANDLER)
+        return r
+
+    def editCoords(self,**args):
+        """ method: flickr.photos.people.editCoords
+            Edit the bounding box of an existing person on a photo.
+            
+        Authentication:
+            This method requires authentication with 'write' permission.
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            person_x (Required)
+                The left-most pixel co-ordinate of the box around the person.
+            person_y (Required)
+                The top-most pixel co-ordinate of the box around the person.
+            person_w (Required)
+                The width (in pixels) of the box around the person.
+            person_h (Required)
+                The height (in pixels) of the box around the person. 
+        """
+        r = method_call.call_api(method = "flickr.photos.people.deleteCoords", user_id = self.id, photo_id = self.photo.id,auth_handler = AUTH_HANDLER,**args)
+        return r
+
+class PhotoComment(FlickrObject):
+    def delete(self):
+        """ method: flickr.photos.comments.deleteComment
+            Delete a comment as the currently authenticated user.
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        """
+        r = method_call.call_api(method = "flickr.test.login",comment_id = self.id, auth_handler = AUTH_HANDLER)
+
+    def edit(self, comment_text):
+        """ method: flickr.photos.comments.editComment
+            Edit the text of a comment as the currently authenticated user.
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            comment_text (Required)
+                Update the comment to this text.
+        """
+        r = method_call.call_api(method = "flickr.test.login",comment_id = self.id, comment_text = comment_text, auth_handler = AUTH_HANDLER)
+
+    @staticmethod
+    def getRecentForContacts(**args):
+        """ method: flickr.photos.comments.getRecentForContacts
+        
+            Return the list of photos belonging to your contacts that have been commented on recently.
+        
+        Authentication:
+            This method requires authentication with 'read' permission.
+        
+        Arguments:
+            date_lastcomment (Optional)
+                Limits the resultset to photos that have been commented on since this date. The date should be in the form of a Unix timestamp.
+
+                The default, and maximum, offset is (1) hour. 
+            contacts_filter (Optional)
+                A comma-separated list of contact NSIDs to limit the scope of the query to.
+            extras (Optional)
+                A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
+            per_page (Optional)
+                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
+            page (Optional)
+                The page of results to return. If this argument is omitted, it defaults to 1. 
+        """
+        r = method_call.call_api(method = "flickr.test.login", auth_handler = AUTH_HANDLER,**args)
+        return _extract_photo_list(r)
+        
+class PhotoGeo(object):
+    @staticmethod
+    def photosForLocation(**args):
+        """ method:  flickr.photos.geo.photosForLocation
+        
+            Return a list of photos for the calling user at a specific 
+            latitude, longitude and accuracy
+        
+        Authentication:
+            This method requires authentication with 'read' permission.
+        
+        Arguments:
+            lat (Required)
+                The latitude whose valid range is -90 to 90. Anything more 
+                than 6 decimal places will be truncated.
+            lon (Required)
+                The longitude whose valid range is -180 to 180. Anything 
+                more than 6 decimal places will be truncated.
+            accuracy (Optional)
+                Recorded accuracy level of the location information. World 
+                level is 1, Country is ~3, Region ~6, City ~11, Street ~16. 
+                Current range is 1-16. Defaults to 16 if not specified.
+            extras (Optional)
+                A comma-delimited list of extra information to fetch for 
+                each returned record. Currently supported fields are: 
+                description, license, date_upload, date_taken, owner_name, 
+                icon_server, original_format, last_update, geo, tags, 
+                machine_tags, o_dims, views, media, path_alias, url_sq, 
+                url_t, url_s, url_m, url_z, url_l, url_o
+            per_page (Optional)
+                Number of photos to return per page. If this argument is 
+                omitted, it defaults to 100. The maximum allowed value 
+                is 500.
+            page (Optional)
+                The page of results to return. If this argument is omitted, 
+                it defaults to 1. 
+        """
+        r = method_call.call_api(method = "flickr.photos.licences.getInfo",auth_handler = AUTH_HANDLER,**args)
+        return _extract_photo_list(r)
+
+class PhotoGeoPerms(FlickrObject):
+    __converters__ = [
+        dict_converter(["ispublic","iscontact","isfamily","isfriend"],bool)
+    ]
+    __display__ = ["id","ispublic","iscontact","isfamily","isfriend"]
+
+class PhotoSet(FlickrObject):
+    __converters__ = [
+        dict_converter(["photos"],int),
+    ]
+    __display__ = ["id","title"]
+
+    def addPhoto(self,**args):
+        """ method: flickr.photosets.addPhoto
+
+            Add a photo to the end of an existing photoset.
+
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        Arguments:
+            photo (Required)        
+        """
+        try :
+            args["photo_id"] = args.pop("photo").id
+        except KeyError : pass
+
+        r = method_call.call_api(method = "flickr.photosets.add",photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+
+    def addComment(self,**args):
+        """ method: flickr.photosets.comments.addComment
+        
+            Add a comment to a photoset.
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            comment_text (Required)
+                Text of the comment 
+        """
+        r = method_call.call_api(method = "flickr.photosets.comments.addComment",photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        return PhotoSetComment(photoset = self,**r)
+
+    @staticmethod
+    def create(**args):
+        """ method: flickr.photosets.create
+            Create a new photoset for the calling user.
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            title (Required)
+                A title for the photoset.
+            description (Optional)
+                A description of the photoset. May contain limited html.
+            primary_photo or primary_photo_id (Required)
+                The photo or id of the photo to represent this set. The photo must belong to the calling user. 
+        """
+        try :
+            pphoto = args.pop("primary_photo")
+            if isinstance(pphoto,Photo):
+                pphoto = pphoto.id
+            pphoto["primary_photo_id"] = pphoto
+        except KeyError: pass
+    
+        r = method_call.call_api(method = "flickr.photosets.create", auth_handler = AUTH_HANDLER,**args)
+        photoset = r["photoset"]
+        photoset["primary"] = Photo(id = photoset.pop("primary_photo_id"))
+        return PhotoSet(**photoset)
+
+    def delete(self):
+        """ method: flickr.photosets.delete
+            Delete a photoset.
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        """
+        r = method_call.call_api(method = "flickr.photosets.delete", photoset_id = self.id, auth_handler = AUTH_HANDLER)
+
+    
+    def editMeta(self,**args):
+        """ method: flickr.photosets.editMeta
+                Modify the meta-data for a photoset.
+            
+            Authentication:
+
+                This method requires authentication with 'write' permission.
+
+                Note: This method requires an HTTP POST request.
+            
+            Arguments:
+                title (Required)
+                    The new title for the photoset.
+                description (Optional)
+                    A description of the photoset. May contain limited html. 
+            
+        """
+        r = method_call.call_api(method = "flickr.photosets.editMeta", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+    
+    def editPhotos(self,**args):
+        """ method:flickr.photosets.editPhotos
+
+            Modify the photos in a photoset. Use this method to add, 
+            remove and re-order photos.
+            
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            primary_photo_id (Required)
+                The id of the photo to use as the 'primary' photo for the 
+                set. This id must also be passed along in photo_ids list 
+                argument.
+            photo_ids (Required)
+                A comma-delimited list of photo ids to include in the set. 
+                They will appear in the set in the order sent. This list 
+                must contain the primary photo id. All photos must belong 
+                to the owner of the set. This list of photos replaces the 
+                existing list. Call flickr.photosets.addPhoto to append 
+                a photo to a set.
+        """
+        
+        try :
+            args["primary_photo_id"] = args.pop("primary_photo").id
+        except KeyError : pass
+        try :
+            args["photo_ids"] = [ p.id for p in args["photos"] ]
+        except KeyError : pass
+        
+        photo_ids = args["photo_ids"]
+        if isinstance(photo_ids,list):
+            args["photo_ids"] = ", ".join(photo_ids)
+            
+        r = method_call.call_api(method = "flickr.photosets.editPhotos", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+
+    def getCommentList(self):
+        """ method: flickr.photosets.comments.getList
+            Returns the comments for a photoset.
+        
+        Authentication:
+
+            This method does not require authentication.
+        """
+        r = method_call.call_api(method = "flickr.photosets.comments.getList", photoset_id = self.id)
+        
+        comments = r["comments"]["comment"]
+        comments_ = []
+        if not isinstance(comments,list):
+            comments = [comments]
+        for c in comments :
+            author = c["author"]
+            authorname = c.pop("authorname")
+            c["author"] = Person(id = author,username = authorname)
+            comments_.append(PhotoSetComment(photo = self,**c))
+        return comments_
+
+    def getContext(self,**args):
+        """ method: flickr.photosets.getContext
+        
+            Returns next and previous photos for a photo in a set.
+        
+        Authentication:
+
+            This method does not require authentication.
+        
+        Arguments:
+            photo_id (Required)
+                The id of the photo to fetch the context for.
+
+        """
+        
+        try :
+            photo_id = args.pop("photo").id
+        except KeyError :
+            photo_id = args["photo_id"]
+        
+        r = method_call.call_api(method = "flickr.photosets.getContext", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        return Photo(**r["prevphoto"]),Photo(**r["nextphoto"])
+
+    def getInfo(self):
+        """ method: flickr.photosets.getInfo
+        
+            Gets information about a photoset.
+            
+        Authentication:
+            This method does not require authentication.
+        """
+        r = method_call.call_api(method = "flickr.photosets.getInfo",photoset_id = self.id)
+        photoset = r["photoset"]
+        photoset["owner"] = Person(id = photoset["owner"])
+        return photoset
+
+    
+    def getList(self,**args):
+        """ method: flickr.photosets.getList
+            Returns the photosets belonging to the specified user.
+        
+        Authentication:
+
+            This method does not require authentication.
+        
+        Arguments:
+            user_id (Optional)
+                The NSID of the user to get a photoset list for. If none is specified, the calling user is assumed. 
+        """
+        
+        try :
+            args["user_id"] = args.pop("user").id
+        except KeyError : pass
+        
+        r = method_call.call_api(method = "flickr.photosets.getList",**args)
+        info = r["photosets"]
+        photosets = info.pop("photoset")
+        if not isinstance(photosets,list): phototsets = [photosets]
+        return [ PhotoSet(**p) for ps in photosets ],Info(**info)
+
+    def getPhotos(self,**args):
+        """ method: flickr.photosets.getPhotos
+            Get the list of photos in a set.
+        
+        Authentication:
+
+            This method does not require authentication.
+        
+        Arguments:
+            extras (Optional)
+                A comma-delimited list of extra information to fetch for 
+                each returned record. Currently supported fields are: license, 
+                date_upload, date_taken, owner_name, icon_server, original_format, 
+                last_update, geo, tags, machine_tags, o_dims, views, media, 
+                path_alias, url_sq, url_t, url_s, url_m, url_o
+            privacy_filter (Optional)
+                Return photos only matching a certain privacy level. This 
+                only applies when making an authenticated call to view a 
+                photoset you own. Valid values are:
+
+                    * 1 public photos
+                    * 2 private photos visible to friends
+                    * 3 private photos visible to family
+                    * 4 private photos visible to friends & family
+                    * 5 completely private photos
+
+            per_page (Optional)
+                Number of photos to return per page. If this argument is 
+                omitted, it defaults to 500. The maximum allowed value is 500.
+            page (Optional)
+                The page of results to return. If this argument is omitted, 
+                it defaults to 1.
+            media (Optional)
+                Filter results by media type. Possible values are all (default), 
+                photos or videos 
+        """
+        
+        try :
+            extras = args["extras"]
+            if isinstance(extras,list):
+                args["extras"] = u",".join(extras)
+        except KeyError : pass
+        
+        r = method_call.call_api(method = "flickr.photosets.getPhotos",photoset_id = self.id, **args)
+        return _extract_photo_list(r)
+
+    @staticmethod
+    def orderSets(**args):
+        """ method:flickr.photosets.orderSets
+            Set the order of photosets for the calling user.
+        
+        Authentication:
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            photoset_ids (Required)
+                A comma delimited list of photoset IDs, ordered with the set to show
+                first, first in the list. Any set IDs not given in the list will be 
+                set to appear at the end of the list, ordered by their IDs. 
+        
+        """
+        try :
+            photosets = args.pop("photosets")
+            args["photoset_ids"] = [ ps.id for ps in photosets ]
+        except KeyError : pass
+        
+        photoset_ids = arsg["photoset_ids"]
+        if isinstance(photoset_ids,list):
+            args["photoset_ids"] = ", ".join(photoset_ids)
+        
+        r = method_call.call_api(method = "flickr.photosets.orderSets", auth_handler = AUTH_HANDLER,**args)
+        
+    def removePhoto(self,**args):
+        """ method: flickr.photosets.removePhoto
+            Remove a photo from a photoset.
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            photo_id (Required)
+                The id of the photo to remove from the set. 
+        
+        """
+        
+        try :
+            args["photo_id"] = args.pop("photo").id
+        except KeyError : pass
+        
+        r = method_call.call_api(method = "flickr.photosets.removePhoto", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        
+    def removePhotos(self,**args):
+        """ method: flickr.photosets.removePhotos
+            Remove multiple photos from a photoset.
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            photo_ids (Required)
+                Comma-delimited list of photo ids to remove from the photoset.
+        """
+        
+        try :
+            args["photo_ids"] = [ p.id for p in args.pop("photos") ]
+        except KeyError : pass
+        
+        photo_ids = args["photo_ids"]
+        if isinstance(photo_ids,list):
+            args["photo_ids"] = u",".join(photo_ids)
+        
+        r = method_call.call_api(method = "flickr.photosets.removePhotos", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+    
+    def reorderPhotos(self,**args):
+        """ method: flickr.photosets.reorderPhotos
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            photo_ids (Required)
+                Ordered, comma-delimited list of photo ids. Photos that are not in the list will keep their original order 
+        """
+
+        try :
+            args["photo_ids"] = [ p.id for p in args.pop("photos") ]
+        except KeyError : pass
+        
+        photo_ids = args["photo_ids"]
+        if isinstance(photo_ids,list):
+            args["photo_ids"] = u",".join(photo_ids)
+        
+        r = method_call.call_api(method = "flickr.photosets.reorderPhotos", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+       
+    def setPrimaryPhoto(self,**args):
+        """ method: flickr.photosets.setPrimaryPhoto
+            Set photoset primary photo
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            photo_id (Required)
+                The id of the photo to set as primary. 
+        """
+        try :
+            args["photo_id"] = args.pop("photo").id
+        except KeyError : pass
+        
+        r = method_call.call_api(method = "flickr.photosets.setPrimaryPhoto", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+
+class PhotoSetComment(FlickrObject):
+    def delete(self):
+        """ method: flickr.photosets.comments.deleteComment
+            Delete a photoset comment as the currently authenticated user.
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        """
+        r = method_call.call_api(method = "flickr.photosets.comments.deleteComment", comment_id = self.id, auth_handler = AUTH_HANDLER)
+
+    def edit(self,**args):
+        """ method: flickr.photosets.comments.editComment
+            Edit the text of a comment as the currently authenticated user.
+        
+        Authentication:
+
+            This method requires authentication with 'write' permission.
+
+            Note: This method requires an HTTP POST request.
+        
+        Arguments:
+            comment_text (Required)
+                Update the comment to this text. 
+        
+        """
+        r = method_call.call_api(method = "flickr.photosets.comments.editComment", comment_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        self._set_properties(**args)
         
         
- 
+class Pool(FlickrObject):
+    pass
+
+class Test(object):
+    @staticmethod
+    def login():
+        r = method_call.call_api(method = "flickr.test.login",auth_handler = AUTH_HANDLER)
+        return Person(**r["user"])
+
+class UploadTicket(FlickrObject):
+    pass
+
 def _extract_photo_list(r):
     photos = []
     infos = r["photos"]
     pp = infos.pop("photo")
-    
+    if not isinstance(pp,list):
+        pp = [pp]
     for p in pp :
-        owner = Person(p["owner"])
+        owner = Person(id = p["owner"])
         p["owner"] = owner
-        photos.append( Photo("",**p))
-        
-    return photos,infos 
-    
+        photos.append( Photo(**p))
+    return photos,Info(**infos)
 
-class Pool(FlickrObject):
-    pass
+def _check_list(obj):
+    if isinstance(obj,list):
+        return obj
+    else :
+        return [obj]
 
-class PhotoSet(FlickrObject):
-    pass
 
-class Group(FlickrObject):
-    pass
+
