@@ -696,7 +696,7 @@ class Group(FlickrObject):
         groups = [Group(**g) for g in info.pop("group")]
         return groups,Info(**info)
         
-    def getMemberList(self,**args):
+    def getMembers(self,**args):
         """ method: flickr.groups.members.getList
         
             Get a list of the members of a group. The call must be signed on behalf of a Flickr member, and the ability to see the group membership will be determined by the Flickr member's group privileges.
@@ -1179,7 +1179,7 @@ class Person(FlickrObject):
         r = method_call.call_api(method = "flickr.favorites.getContext", user_id = self.id ,**args)
         return (Photo(**r["prevphoto"]),Photo(**r["nextphoto"])),Info(count = r["count"])
     
-    def getFavoriteList(self,**args):
+    def getFavorites(self,**args):
         """ method: flickr.favorites.getList
 
             Returns a list of the user's favorite photos. Only photos which the calling user has permission to see are returned.
@@ -1209,7 +1209,7 @@ class Person(FlickrObject):
         r = method_call.call_api(method = "flickr.favorites.getPublicList", user_id = self.id , auth_handler = AUTH_HANDLER ,**args)
         return _extract_photo_list(r)
     
-    def getFavoritePublicList(self,**args):
+    def getPublicFavorites(self,**args):
         """ method: flickr.favorites.getPublicList
         
             Returns a list of favorite public photos for the given user.
@@ -1255,7 +1255,7 @@ class Person(FlickrObject):
         user["photos"] = FlickrDictObject("person",user["photos"])
         return user
 
-    def getGalleryList(self,**args):
+    def getGalleries(self,**args):
         """ method : flickr.galleries.getList
         
             Return the list of galleries created by a user. Sorted from 
@@ -1514,7 +1514,7 @@ class Person(FlickrObject):
         r = method_call.call_api(method = "flickr.people.getPhotosOf", user_id = self.id ,auth_handler = AUTH_HANDLER)
         return _extract_photo_list(r)
 
-    def getPublicContactList(self,**args):
+    def getPublicContacs(self,**args):
         """ method: flickr.contacts.getPublicList
 
             Get the contact list for a user.
@@ -2010,7 +2010,7 @@ class Photo(FlickrObject):
 
         return photosets,pools
     
-    def getCommentList(self,**args):
+    def getComments(self,**args):
         """ method: flickr.photos.comments.getList
             Returns the comments for a photo
         
@@ -2196,7 +2196,7 @@ class Photo(FlickrObject):
         infos = FlickrDictObject(photo)
         return persons_,infos
     
-    def getGalleryList(self,**args):
+    def getGalleries(self,**args):
         """ method: flickr.galleries.getListForPhoto
         
             Return the list of galleries to which a photo has been added. 
@@ -2664,7 +2664,7 @@ class Photo(FlickrObject):
             
         return _extract_photo_list(r)
 
-    def getPeopleList(self,**args):
+    def getPeople(self,**args):
         """ method: flickr.photos.people.getList
             Get a list of people in a given photo.
             
@@ -3519,7 +3519,7 @@ class Photoset(FlickrObject):
             
         r = method_call.call_api(method = "flickr.photosets.editPhotos", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
 
-    def getCommentList(self):
+    def getComments(self):
         """ method: flickr.photosets.comments.getList
             Returns the comments for a photoset.
         
@@ -3990,7 +3990,7 @@ class Place(FlickrObject):
         return [ Place.ShapeData(**Place.parse_shapedata(sd)) for sd in _check_list(info.pop("shapedata"))]
 
     @staticmethod
-    def getTopPlacesList(**args):
+    def getTopPlaces(**args):
         """ method: flickr.places.getTopPlacesList
             Return the top 100 most geotagged places for a day.
         
