@@ -1,3 +1,37 @@
+"""
+    Authentication capabilities for the Flickr API.
+    
+    It implements the new authentication specifications of Flickr
+    based on OAuth.
+    
+    The authentication process is in 3 steps.
+    
+    - Authorisation request :
+    >>> a = AuthHandler(call_back_url)
+    >>> a.get_authorization_url('write')
+    print  'http://www.flickr.com/services/oauth/authorize?oauth_token=xxxx&perms=write'
+    
+    - The user gives his authorization at the url given by 'get_authorization_url'
+      and is redrected to the 'call_back_url' with the oauth_verifier encoded
+      in the url. This value can then be given to the AuthHandler:
+      
+    >>> a.set_verifier("66455xxxxx")
+    
+    - The authorization handler can then be set for the python session
+      and will be automatically used when needed.
+      
+    >>> flickr_api.set_authorization_handler(a)
+    
+    The authorization handler can also be saved and loaded :
+    >>> a.write(filename)
+    >>> a = AuthHandler.load(filename)
+
+    Author : Alexis Mignon
+    e-mail : alexis.mignon@gmail.com
+    Date   : 06/08/2011
+
+"""
+
 from oauth import oauth
 import time
 import urlparse
@@ -82,6 +116,7 @@ class AuthHandler(object):
         req = oauth.OAuthRequest(http_method="POST", http_url=url, parameters=defaults)
         req.sign_request(oauth.OAuthSignatureMethod_HMAC_SHA1(),self.consumer,self.access_token)
         req.parameters.update(excluded)
+
         return req
 
     def write(self,filename):

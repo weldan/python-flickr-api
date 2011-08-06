@@ -1,3 +1,11 @@
+"""
+    Some base objects for the Flickr API.
+    
+    Author : Alexis Mignon (c)
+    e-mail : alexis.mignon@gmail.com
+    Date   : 05/08/2011
+
+"""
 
 class FlickrError(Exception):
     pass

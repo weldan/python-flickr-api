@@ -10,7 +10,7 @@ REST_URL = "http://api.flickr.com/services/rest/"
 
 
 def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, needssigning = False,url = REST_URL,exclude_signature = [],**args):
-    args = clean_args(args)
+    clean_args(args)
     args["api_key"] = api_key
     args["format"] = 'json'
     args["nojsoncallback"] = 1
@@ -63,7 +63,4 @@ def clean_content(d):
 def clean_args(args):
     for k,v in args.items() :
         if isinstance(v,bool):
-            args[v] = int(v)
-        elif isinstance(v,list):
-            args[v] = " ".join(v)
-    return args
+            args[k] = int(v)

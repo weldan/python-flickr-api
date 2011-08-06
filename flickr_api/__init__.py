@@ -18,6 +18,11 @@
     Author : Alexis Mignon (c)
     email  : alexis.mignon_at_gmail.com
     Date   : 05/08/2011
+    
+    You can freely user, modify and redistribute this code for
+    non commercial use. The only requirement is to indicate the
+    copyright information.
+    
 """
 
 from objects import *

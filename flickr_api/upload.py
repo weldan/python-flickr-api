@@ -1,12 +1,65 @@
-import method_call
-from objects import Photo,UploadTicket
+"""
+    Upload API for Flickr.
+    It is separated since it requires different treatments than
+    the usual API.
+    
+    Two functions are provided :
+    
+    - upload
+    - replace (presently not working)
+    
+    Author : Alexis Mignon (c)
+    email  : alexis.mignon@gmail.com
+    Date   : 06/08/2011
 
-UPLOAD_URL = "http://api.flickr.com/services/upload/"
+"""
+
+
+import method_call
+from base import FlickrError, FlickrAPIError
+from objects import Photo,UploadTicket
+import auth
+import multipart
+from flickr_keys import API_KEY
+import os
+from xml.etree import ElementTree as ET
+
+UPLOAD_URL = "http://api.flickr.com/services/upload/"
 REPLACE_URL = "http://api.flickr.com/services/replace/"
 
 AUTH_HANDLER = None
 
+def format_dict(d):
+    d_ = {}
+    for k,v in d.iteritems() :
+        if isinstance(v,bool):
+            v = int(v)
+        elif isinstance(v,unicode):
+            v = v.encode("utf8")
+        if isinstance(k,unicode):
+            k = k.encode("utf8")
+        v = str(v)
+    return d_
 
+def post(url,auth_handler,args,photo_file):
+    args = format_dict(args)
+    args["api_key"] = API_KEY
+    args["format"] = 'json'
+    args["nojsoncallback"] = "1"
+    params = auth_handler.complete_parameters(url,args).parameters
+    
+    fields = params.items()
+    
+    files = [ ("photo",os.path.basename(photo_file),open(photo_file).read() )]
+    
+    r = multipart.posturl(url,fields,files)
+    if r.status != 200 :
+        raise FlickrError("HTTP Error %i: %s"%(r.status,r.read()))
+    r =  ET.fromstring(r.read())
+    if r.get("stat")!= 'ok' :
+        err = r[0]
+        raise FlickrAPIError(int(err.get("code")),err.get("msg"))
+    return r
 
 def upload(**args):
     """
@@ -38,16 +91,18 @@ def upload(**args):
     """
     if "async" not in args : args["async"] = True
     
-    with open(args.pop("photo_file")) as p :
-        args["photo"] = p.read()
+    photo_file = args.pop("photo_file")
 
-    r = method_call.call_api(auth_handler = AUTH_HANDLER,exclude_signature = ["photo"],url = UPLOAD_URL, **args)
-    if async :
-        return UploadTicket(id = r["ticketid"])
+    r = post(UPLOAD_URL,AUTH_HANDLER,args,photo_file)
+
+    t = r[0]
+    if t.tag == 'photoid' :
+        return Photo(id = t.text)
+    elif t.tag == 'ticketid' :
+        return UploadTicket(id = t.text)
     else :
-        return r
+        raise FlickrError("Unexpected tag: %s"%t.tag)
 
-    
 def replace(**args):
     """
      Authentication:
@@ -75,11 +130,15 @@ def replace(**args):
     """
     if "async" not in args : args["async"] = True
     if "photo" in args : args["photo_id"] = args.pop("photo").id
-    with open(args.pop("photo_file")) as p :
-        args["photo"] = p.read()
         
-    r = method_call.call_api(auth_handler = AUTH_HANDLER,exclude_signature = ["photo"],url = UPLOAD_URL, **args)
-    if async :
-        return UploadTicket(id = r["ticketid"])
+    photo_file = args.pop("photo_file")
+
+    r = post(REPLACE_URL,AUTH_HANDLER,args,photo_file)
+
+    t = r[0]
+    if t.tag == 'photoid' :
+        return Photo(id = t.text)
+    elif t.tag == 'ticketid' :
+        return UploadTicket(id = t.text, secret = t.secret)
     else :
-        return r
+        raise FlickrError("Unexpected tag: %s"%t.tag)
