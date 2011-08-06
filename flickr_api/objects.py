@@ -22,6 +22,12 @@
 """
 import method_call
 from  base import FlickrDictObject,FlickrObject,FlickrError,dict_converter
+import urllib2
+
+try :
+    import Image
+    import cStringIO
+except ImportError : pass
 
 AUTH_HANDLER = None
 
@@ -2354,9 +2360,10 @@ class Photo(FlickrObject):
         Authentication:
             This method does not require authentication.
         """
-        r = method_call.call_api(method = "flickr.photos.getSizes", photo_id = self.id, auth_handler = AUTH_HANDLER)
-        
-        return r["sizes"]["size"]
+        if "sizes" not in self.__dict__ :
+            r = method_call.call_api(method = "flickr.photos.getSizes", photo_id = self.id, auth_handler = AUTH_HANDLER)
+            self.__dict__["sizes"] = dict( [(s["label"],s) for s in r["sizes"]["size"]])
+        return self.sizes
 
     def getStats(self,date):
         """ method: flickr.stats.getPhotosStats
@@ -2390,7 +2397,101 @@ class Photo(FlickrObject):
         r = method_call.call_api(method = "flickr.tags.getListPhoto", photo_id = self.id)
         return [Tag(**t) for t in r["tags"]["tag"]]
         
+    def getPageUrl(self):
+        """
+            returns the URL to the photo's page.
+        """
+        return "http://www.flickr.com/photos/%s/%s"%(self.owner.id,self.id)
     
+    def getPhotoUrl(self,size_label = 'Large'):
+        """
+            returns the URL to the photo page corresponding to the
+            given size.
+            
+        Arguments :
+            size_label : The label corresponding to the photo size 
+            
+                'Square' : 75x75
+                'Thumbnail' : 100 on longest side
+                'Small' : 240 on  longest side
+                'Medium' : 500 on longest side
+                'Medium 640' : 640 on longest side
+                'Large' : 1024 on longest side
+                'Original' : original photo (not always available)
+        """
+        try :
+            return self.getSizes()[size_label]["url"]
+        except KeyError :
+            raise FlickrError("The requested size is not available")
+            
+    def getPhotoFile(self,size_label = 'Large'):
+        """
+            returns the URL to the photo file corresponding to the
+            given size.
+            
+        Arguments :
+            size_label : The label corresponding to the photo size 
+            
+                'Square' : 75x75
+                'Thumbnail' : 100 on longest side
+                'Small' : 240 on  longest side
+                'Medium' : 500 on longest side
+                'Medium 640' : 640 on longest side
+                'Large' : 1024 on longest side
+                'Original' : original photo (not always available)
+        """
+        try :
+            return self.getSizes()[size_label]["source"]
+        except KeyError :
+            raise FlickrError("The requested size is not available")
+        
+    def save(self,filename,size_label = 'Large'):
+        """
+            saves the photo corresponding to the
+            given size.
+            
+        Arguments :
+            filename : target file name
+            
+            size_label : The label corresponding to the photo size 
+            
+                'Square' : 75x75
+                'Thumbnail' : 100 on longest side
+                'Small' : 240 on  longest side
+                'Medium' : 500 on longest side
+                'Medium 640' : 640 on longest side
+                'Large' : 1024 on longest side
+                'Original' : original photo (not always available)
+        """
+        r = urllib2.urlopen(self.getPhotoFile(size_label))
+        with open(filename,'w+') as f:
+            f.write(r.read())
+    
+    def show(self,size_label = 'Large'):
+        """
+            Shows the photo corresponding to the
+            given size.
+            
+        Note: This methods uses PIL 
+            
+        Arguments :
+            filename : target file name
+            
+            size_label : The label corresponding to the photo size 
+            
+                'Square' : 75x75
+                'Thumbnail' : 100 on longest side
+                'Small' : 240 on  longest side
+                'Medium' : 500 on longest side
+                'Medium 640' : 640 on longest side
+                'Large' : 1024 on longest side
+                'Original' : original photo (not always available)
+        """
+        
+        r = urllib2.urlopen(self.getPhotoFile(size_label))
+        b = cStringIO.StringIO(r.read())
+        Image.open(b).show()
+
     @staticmethod
     def getUntagged(**args):
         """ method: flickr.photos.getUntagged -> photos,infos
