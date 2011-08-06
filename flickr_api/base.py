@@ -48,12 +48,17 @@ class FlickrObject(object):
     def __str__(self):
         vals = []
         for k in self.__class__.__display__ :
+            val_found = False
             try :
                 value = self.__dict__[k]
+                val_found = True
             except KeyError :
                 self.load()
-                value = self.__dict__[k]
-            
+                try :
+                    value = self.__dict__[k]
+                    val_found = True
+                except KeyError : pass
+            if not val_found : continue
             if isinstance(value,unicode):
                 value = value.encode("utf8")
             if isinstance(value,str):
@@ -69,11 +74,11 @@ class FlickrObject(object):
             Returns object information as a dictionnary.
             Should be overriden.
         """
-        if not hasattr(self,"id") : raise AttributeError("'%s' object has not attribute '%s'"%(self.__class__.__name__,"id"))
-        return { "loaded" : True}
+        return {}
 
     def load(self):
         props = self.getInfo()
+        self.__dict__["loaded"] = True
         self._set_properties(**props)
 
 def dict_converter(keys,func):

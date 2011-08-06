@@ -8,7 +8,8 @@ from flickr_keys import API_KEY, API_SECRET
 
 REST_URL = "http://api.flickr.com/services/rest/"
 
-def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, needssigning = False,**args):
+
+def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, needssigning = False,url = REST_URL,exclude_signature = [],**args):
     args = clean_args(args)
     args["api_key"] = api_key
     args["format"] = 'json'
@@ -25,9 +26,9 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
         data = urllib.urlencode(args)
         
     else :
-         data = auth_handler.complete_parameters(url = REST_URL,params = args).to_postdata()
+         data = auth_handler.complete_parameters(url = url,params = args,exclude_signature = exclude_signature).to_postdata()
 
-    req = urllib2.Request(REST_URL,data)
+    req = urllib2.Request(url,data)
     
 
     try :
@@ -39,20 +40,25 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
 
     if resp["stat"] != "ok" :
         raise FlickrAPIError(resp["code"],resp["message"])
-    clean_content(resp)
+
+    resp = clean_content(resp)
 
     return resp
 
-def clean_content(dict_):
-    for k,v in dict_.items() :
-        if isinstance(v,dict) :
-            if v.has_key(u"_content") :
-                if len(v) == 1:
-                    dict_[k] = v["_content"]
-                else :
-                    v["text"] = v.pop("_content")
-        v = dict_[k]
-        if isinstance(v,dict): clean_content(v)
+def clean_content(d):
+    if isinstance(d,dict):
+        d_clean = {}
+        if len(d) == 1 and d.has_key("_content") :
+            return clean_content(d["_content"])
+        for k,v in d.iteritems() :
+            if k == "_content" :
+                k = "text"
+            d_clean[k] = clean_content(v)
+        return d_clean
+    elif isinstance(d,list):
+        return [clean_content(i) for i in d]
+    else :
+        return d
 
 def clean_args(args):
     for k,v in args.items() :

@@ -64,7 +64,7 @@ class AuthHandler(object):
         access_token_resp = dict(urlparse.parse_qsl(resp.read()))
         self.access_token = oauth.OAuthToken(access_token_resp["oauth_token"],access_token_resp["oauth_token_secret"])
 
-    def complete_parameters(self,url,params = {}):
+    def complete_parameters(self,url,params = {},exclude_signature = []):
         
         defaults = {
             'oauth_timestamp': str(int(time.time())),
@@ -74,9 +74,14 @@ class AuthHandler(object):
             'oauth_consumer_key':self.consumer.key,
         }
 
+        excluded = {}
+        for e in exclude_signature :
+            excluded[e] = params.pop(e)
+
         defaults.update(params)
         req = oauth.OAuthRequest(http_method="POST", http_url=url, parameters=defaults)
         req.sign_request(oauth.OAuthSignatureMethod_HMAC_SHA1(),self.consumer,self.access_token)
+        req.parameters.update(excluded)
         return req
 
     def write(self,filename):

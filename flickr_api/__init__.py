@@ -23,6 +23,8 @@
 from objects import *
 import objects
 from auth import AuthHandler
+import upload
 
-def set_auth_handler(auth):
-    objects.AUTH_HANDLER = auth
+def set_auth_handler(auth_handler):
+    objects.AUTH_HANDLER = auth_handler
+    upload.AUTH_HANDLER = auth_handler
