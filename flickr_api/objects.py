@@ -1652,7 +1652,7 @@ class Photo(FlickrObject):
 
                 Note: This method requires an HTTP POST request.
             """
-            r = method_call.call_api(method = "flickr.test.login",comment_id = self.id, auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photos.comments.deleteComment",comment_id = self.id, auth_handler = AUTH_HANDLER)
 
         def edit(self, comment_text):
             """ method: flickr.photos.comments.editComment
@@ -1667,7 +1667,7 @@ class Photo(FlickrObject):
                 comment_text (Required)
                     Update the comment to this text.
             """
-            r = method_call.call_api(method = "flickr.test.login",comment_id = self.id, comment_text = comment_text, auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photos.comments.editComment",comment_id = self.id, comment_text = comment_text, auth_handler = AUTH_HANDLER)
 
         @staticmethod
         def getRecentForContacts(**args):
@@ -1692,8 +1692,11 @@ class Photo(FlickrObject):
                 page (Optional)
                     The page of results to return. If this argument is omitted, it defaults to 1. 
             """
-            r = method_call.call_api(method = "flickr.test.login", auth_handler = AUTH_HANDLER,**args)
+            r = method_call.call_api(method = "flickr.photos.comments.getRecentForContacts", auth_handler = AUTH_HANDLER,**args)
             return _extract_photo_list(r)
+
+    class Exif(FlickrObject):
+        __display__ = ["tag","raw"]
 
     class Note(FlickrObject):
         __display__ = ["id","text"]
@@ -2026,7 +2029,11 @@ class Photo(FlickrObject):
                 in the form of a unix timestamp. 
         """
         r = method_call.call_api(method = "flickr.photos.comments.getList", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
-        comments = r["comments"]["comment"]
+        try :
+            comments = r["comments"]["comment"]
+        except KeyError :
+            comments = []
+
         comments_ = []
         if not isinstance(comments,list):
             comments = [comments]
@@ -2094,7 +2101,7 @@ class Photo(FlickrObject):
             tags.append(Tag(**t))
             
         photo["tags"] = tags        
-        notes = [Photo.Note(**n) for n in _check_list(photo["notes"]["note"])]
+        photo["notes"] = [Photo.Note(**n) for n in _check_list(photo["notes"]["note"])]
         
         return photo
 
@@ -2145,7 +2152,10 @@ class Photo(FlickrObject):
             r = method_call.call_api(method = "flickr.photos.getExif", photo_id = self.id, secret = self.secret)            
         else :
             r = method_call.call_api(method = "flickr.photos.getExif", photo_id = self.id, auth_handler = AUTH_HANDLER)
-        return r["photo"]["exif"]
+        try :
+            return [Photo.Exif(**e) for e in r["photo"]["exif"]]
+        except KeyError :
+            return []
     
     def getFavoriteContext(self,**args):
         """ method: flickr.favorites.getContext
@@ -2259,6 +2269,13 @@ class Photo(FlickrObject):
         r = method_call.call_api(method = "flickr.photos.geo.getLocation", photo_id = self.id)
         loc = r["photo"]["location"]
         return Location(photo = self, **loc)
+    
+    def getNotes(self):
+        """
+            Returns the list of notes for a photograph
+        """
+        
+        return self.notes
 
     @staticmethod
     def getNotInSet(**args):
