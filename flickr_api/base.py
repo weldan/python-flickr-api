@@ -51,8 +51,17 @@ class FlickrObject(object):
         if self.loaded : raise AttributeError("'%s' object has no attribute '%s'"%(self.__class__.__name__,name))
     
     def __setattr__(self,name,values):
-        raise RunTimeError("Readonly attribute")
+        raise FlickrError("Readonly attribute")
     
+    def get(self,key,*args,**kwargs):
+        return self.__dict__.get(key,*args,**kwargs)
+    
+    def __getitem__(self,key):
+        return self.__dict__[key]
+    
+    def __setitem__(self,key,value):
+        raise FlickrError("Read-only attribute")
+
     def __str__(self):
         vals = []
         for k in self.__class__.__display__ :
