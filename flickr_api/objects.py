@@ -2200,10 +2200,11 @@ class Photo(FlickrObject):
         persons_ = []
         if not isinstance(persons,list):
             persons = [persons]
-        for p in r["photo"]["person"] :
+
+        for p in persons :
             p["id"] = p["nsid"]
             persons_.append(Person(**p))
-        infos = FlickrDictObject(photo)
+        infos = Info(**photo)
         return persons_,infos
     
     def getGalleries(self,**args):
@@ -2412,7 +2413,7 @@ class Photo(FlickrObject):
             This method does not require authentication.
         """
         r = method_call.call_api(method = "flickr.tags.getListPhoto", photo_id = self.id)
-        return [Tag(**t) for t in r["tags"]["tag"]]
+        return [Tag(**t) for t in r["photo"]["tags"]["tag"]]
         
     def getPageUrl(self):
         """
