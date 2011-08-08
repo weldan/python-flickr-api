@@ -19,14 +19,11 @@
     email  : alexis.mignon_at_gmail.com
     Date   : 05/08/2011
     
-    You can freely user, modify and redistribute this code for
-    non commercial use. The only requirement is to indicate the
-    copyright information.
-    
 """
 
 from objects import *
 import objects
+import api
 from auth import AuthHandler
 import upload as Upload
 from upload import upload,replace
@@ -34,3 +31,4 @@ from upload import upload,replace
 def set_auth_handler(auth_handler):
     objects.AUTH_HANDLER = auth_handler
     Upload.AUTH_HANDLER = auth_handler
+    api.AUTH_HANDLER = auth_handler
