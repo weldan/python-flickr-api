@@ -29,6 +29,10 @@ import upload as Upload
 from upload import upload,replace
 
 def set_auth_handler(auth_handler):
-    objects.AUTH_HANDLER = auth_handler
-    Upload.AUTH_HANDLER = auth_handler
-    api.AUTH_HANDLER = auth_handler
+    if isinstance(auth_handler,str):
+        ah = AuthHandler.load(auth_handler)
+        set_auth_handler(ah)
+    else :
+        objects.AUTH_HANDLER = auth_handler
+        Upload.AUTH_HANDLER = auth_handler
+        api.AUTH_HANDLER = auth_handler
