@@ -19,7 +19,7 @@ from flickr_keys import API_KEY, API_SECRET
 
 REST_URL = "http://api.flickr.com/services/rest/"
 
-def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, needssigning = False,url = REST_URL, raw = False,**args):
+def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, needssigning = False,request_url = REST_URL, raw = False,**args):
     """
         Performs the calls to the Flickr REST interface.
         
@@ -27,7 +27,7 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
             api_key : The API_KEY to use, if none is given, the key from flickr_keys is used.
             api_secret : The API_SECRET to use, if none is given, the key from flickr_keys is used.
             auth_handler : The authentication handler object to use to perform authentication
-            url : The url to the rest interface to use by default the url in REST_URL is used.
+            request_url : The url to the rest interface to use by default the url in REST_URL is used.
             raw : if True the default xml response from the server is returned. if False (default)
                   a dictionnary built from the JSON answer is returned.
             args : the arguments to pass to the method.
@@ -49,9 +49,9 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
         data = urllib.urlencode(args)
         
     else :
-         data = auth_handler.complete_parameters(url = url,params = args,exclude_signature = exclude_signature).to_postdata()
+         data = auth_handler.complete_parameters(url = request_url,params = args).to_postdata()
 
-    req = urllib2.Request(url,data)
+    req = urllib2.Request(request_url,data)
     
         
     try :
@@ -62,7 +62,11 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
     if raw :
         return resp
 
-    resp = json.loads(resp)
+    try :
+        resp = json.loads(resp)
+    except ValueError,e :
+        print resp
+        raise e
 
     if resp["stat"] != "ok" :
         raise FlickrAPIError(resp["code"],resp["message"])
