@@ -23,6 +23,7 @@
 import method_call
 from  base import FlickrDictObject,FlickrObject,FlickrError,dict_converter
 import urllib2
+from UserList import UserList
 
 try :
     import Image
@@ -31,6 +32,17 @@ except ImportError : pass
 
 AUTH_HANDLER = None
 
+class FlickrList(UserList):
+    def __init__(self,data = [],info = None):
+        UserList.__init__(self,data)
+        self.info = info
+    
+    def __str__(self):
+        return '%s;%s'%(str(self.data),str(self.info))
+    
+    def __repr__(self):
+        return '%s;%s'%(repr(self.data),repr(self.info))
+        
 class Activity(FlickrObject):
     @staticmethod
     def userPhotos(**args):
@@ -340,7 +352,7 @@ class Contact :
         r = method_call.call_api(method = "flickr.contacts.getList", find_email = find_email,auth_handler = AUTH_HANDLER,**args)
         info = r["contacts"]
         contacts = [ Person(id = c["nsid"],**c) for c in _check_list(info["contact"])]
-        return contacts,Info(**info)
+        return FlickrList(contacts,Info(**info))
 
 class Gallery(FlickrObject):
     __display__ = [ "id","title"]
@@ -584,7 +596,7 @@ class Favorite :
         if "photo" in args : args["photo_id"] = args.pop("photo").id
         if "user" in args : args["user_id"] = args.pop("user").id
         r = method_call.call_api(method = "flickr.favorites.remove",auth_handler = AUTH_HANDLER,**args)
-        return (Photo(**r["prevphoto"]),Photo(**r["nextphoto"])),Info(count = r["count"])
+        return FlickrList(Photo(**r["prevphoto"]),Photo(**r["nextphoto"])),Info(count = r["count"])
 
 class Group(FlickrObject):
     __converters__ = [
@@ -694,7 +706,7 @@ class Group(FlickrObject):
         r = method_call.call_api(method = "flickr.groups.search",**args)
         info = r["groups"]
         groups = [Group(**g) for g in info.pop("group")]
-        return groups,Info(**info)
+        return FlickrList(groups,Info(**info))
         
     def getMembers(self,**args):
         """ method: flickr.groups.members.getList
@@ -730,7 +742,7 @@ class Group(FlickrObject):
         except KeyError : pass
         r = method_call.call_api(method = "flickr.groups.members.getList", group_id = self.id,auth_handler = AUTH_HANDLER,**args)
         info = r["members"]
-        return [ Person(**p) for p in _check_list(info.pop("member"))],Info(**info)
+        return FlickrList([ Person(**p) for p in _check_list(info.pop("member"))],Info(**info))
 
     def addPhoto(self,**args):
         """ method: flickr.groups.pools.add
@@ -788,7 +800,7 @@ class Group(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.groups.pools.getGroups", auth_handler = AUTH_HANDLER,**args)
         info = r["groups"]
-        return [ Group(id = g["nsid"], **g) for g in info.pop("group") ],Info(**info)
+        return FlickrList([ Group(id = g["nsid"], **g) for g in info.pop("group") ],Info(**info))
 
     def getPhotos(self,**args):
         """ method: flickr.groups.pools.getPhotos
@@ -944,7 +956,7 @@ class MachineTag(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.machinetags.getNamespaces",**args)
         info = r["namespaces"]
-        return [ Namespace(**ns) for ns in _check_list(info.pop("namespace"))],Info(info)
+        return FlickrList([ Namespace(**ns) for ns in _check_list(info.pop("namespace"))],Info(info))
     
     @staticmethod
     def getPairs(**args):
@@ -969,7 +981,7 @@ class MachineTag(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.machinetags.getPairs",**args)
         info = r["pairs"]
-        return [ Pair(**p) for ns in _check_list(info.pop("pair"))],Info(info)
+        return FlickrList([ Pair(**p) for ns in _check_list(info.pop("pair"))],Info(info))
 
     def getPredicates(**args):
         """ method: flickr.machinetags.getPredicates
@@ -993,7 +1005,7 @@ class MachineTag(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.machinetags.getPredicates",**args)
         info = r["predicates"]
-        return [ Predicate(**p) for p in _check_list(info.pop("predicate"))],Info(info)
+        return FlickrList([ Predicate(**p) for p in _check_list(info.pop("predicate"))],Info(info))
     
     @staticmethod
     def getRecentValues(**args):
@@ -1017,7 +1029,7 @@ class MachineTag(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.machinetags.getRecentValues",**args)
         info = r["values"]
-        return [ Value(**v) for v in _check_list(info.pop("value"))],Info(info)
+        return FlickrList([ Value(**v) for v in _check_list(info.pop("value"))],Info(info))
 
     @staticmethod
     def getValues(**args):
@@ -1041,7 +1053,7 @@ class MachineTag(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.machinetags.getRecentValues",**args)
         info = r["values"]
-        return [ Value(**v) for v in _check_list(info.pop("value"))],Info(info)
+        return FlickrList([ Value(**v) for v in _check_list(info.pop("value"))],Info(info))
 
 
 class Panda(FlickrObject):
@@ -1177,7 +1189,7 @@ class Person(FlickrObject):
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
         r = method_call.call_api(method = "flickr.favorites.getContext", user_id = self.id ,**args)
-        return (Photo(**r["prevphoto"]),Photo(**r["nextphoto"])),Info(count = r["count"])
+        return FlickrList([Photo(**r["prevphoto"]),Photo(**r["nextphoto"])],Info(count = r["count"]))
     
     def getFavorites(self,**args):
         """ method: flickr.favorites.getList
@@ -1208,6 +1220,21 @@ class Person(FlickrObject):
         
         r = method_call.call_api(method = "flickr.favorites.getPublicList", user_id = self.id , auth_handler = AUTH_HANDLER ,**args)
         return _extract_photo_list(r)
+
+    def getPhotosets(self):
+        """ method: flickr.photosets.getList
+            Returns the photosets belonging to the specified user.
+        
+        Authentication:
+
+            This method does not require authentication.
+        """
+
+        r = method_call.call_api(method = "flickr.photosets.getList",user_id = self.id)
+        info = r["photosets"]
+        photosets = info.pop("photoset")
+        if not isinstance(photosets,list): phototsets = [photosets]
+        return FlickrList([ Photoset(**ps) for ps in photosets ],Info(**info))
     
     def getPublicFavorites(self,**args):
         """ method: flickr.favorites.getPublicList
@@ -1289,7 +1316,7 @@ class Person(FlickrObject):
             
             galleries_.append(g)
         
-        return galleries_,Info(**info)
+        return FlickrList(galleries_,Info(**info))
 
     def getPhotos(self,**args):
         """
@@ -1533,7 +1560,7 @@ class Person(FlickrObject):
         r = method_call.call_api(method = "flickr.contacts.getPublicList", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
         info = r["contacts"]
         contacts = [ Person(id = c["nsid"],**c) for c in _check_list(info["contact"])]
-        return contacts,Info(**info)        
+        return FlickrList(contacts,Info(**info))
         
     def getPublicGroups(self,**args):
         """ method : flickr.people.getPublicGroups
@@ -2174,7 +2201,7 @@ class Photo(FlickrObject):
 
         if "user" in args : args["user_id"] = args.pop("user")
         r = method_call.call_api(method = "flickr.photos.getFavoriteContext", photo_id = self.id,**args)
-        return (Photo(**r["prevphoto"]),Photo(**r["nextphoto"])),Info(count = r["count"])
+        return FlickrList( [Photo(**r["prevphoto"]),Photo(**r["nextphoto"])],Info(count = r["count"]) )
     
     def getFavorites(self,**args):
         """ method: flickr.photos.getFavorites
@@ -2205,7 +2232,7 @@ class Photo(FlickrObject):
             p["id"] = p["nsid"]
             persons_.append(Person(**p))
         infos = Info(**photo)
-        return persons_,infos
+        return FlickrList( persons_,infos )
     
     def getGalleries(self,**args):
         """ method: flickr.galleries.getListForPhoto
@@ -2244,7 +2271,7 @@ class Photo(FlickrObject):
             
             galleries_.append(g)
         
-        return galleries_,Info(**info)
+        return FlickrList(galleries_,Info(**info))
     
     def getGeoPerms(self):
         """ method: flickr.photos.geo.getPerms
@@ -3594,30 +3621,6 @@ class Photoset(FlickrObject):
         photoset["owner"] = Person(id = photoset["owner"])
         return photoset
 
-    
-    def getList(self,**args):
-        """ method: flickr.photosets.getList
-            Returns the photosets belonging to the specified user.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            user_id (Optional)
-                The NSID of the user to get a photoset list for. If none is specified, the calling user is assumed. 
-        """
-        
-        try :
-            args["user_id"] = args.pop("user").id
-        except KeyError : pass
-        
-        r = method_call.call_api(method = "flickr.photosets.getList",**args)
-        info = r["photosets"]
-        photosets = info.pop("photoset")
-        if not isinstance(photosets,list): phototsets = [photosets]
-        return [ Photoset(**p) for ps in photosets ],Info(**info)
-
     def getPhotos(self,**args):
         """ method: flickr.photosets.getPhotos
             Get the list of photos in a set.
@@ -3868,7 +3871,7 @@ class Place(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.places.findByLatLon",**args)
         info = r["places"]
-        return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")],Info(**info)
+        return FlickrList([Place(id = place.pop("place_id"), **place) for place in info.pop("place")],Info(**info))
 
     @staticmethod
     def getChildrenWithPhotoPublic(**args):
@@ -4042,7 +4045,7 @@ class Place(FlickrObject):
         if "place" in args: args["place_id"] = args.pop("place").id
         r = method_call.call_api(method = "flickr.places.getTopPlacesList",**args)
         info = r["places"]
-        return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")],Info(**info)
+        return FlickrList([Place(id = place.pop("place_id"), **place) for place in info.pop("place")],Info(**info))
 
     @staticmethod
     def placesForBoundingBox(**args):
@@ -4625,7 +4628,7 @@ class stats:
         r = method_call.call_api(method = "flickr.stats.getCollectionDomains", auth_handler = AUTH_HANDLER,**args)
         info = r["domains"]
         domains = [ stats.Domain(**d) for d in info.pop("domain")]
-        return domains,Info(**info)
+        return FlickrList(domains,Info(**info))
     
     @staticmethod
     def getCollectionReferrers(**args):
@@ -4663,7 +4666,7 @@ class stats:
         r = method_call.call_api(method = "flickr.stats.getCollectionReferrers", auth_handler = AUTH_HANDLER,**args)
         info = r["domain"]
         referrers = [ stats.Referrer(**r) for r in info.pop("referrer")]
-        return domains,Info(**info)
+        return FlickrList(domains,Info(**info))
     
     @staticmethod
     def getCSVFiles():
@@ -4715,7 +4718,7 @@ class stats:
         r = method_call.call_api(method = "flickr.stats.getPhotoDomains", auth_handler = AUTH_HANDLER,**args)
         info = r["domains"]
         domains = [ stats.Domain(**d) for d in info.pop("domain")]
-        return domains,Info(**info)
+        return FlickrList(domains,Info(**info))
 
     @staticmethod
     def getPhotoReferrers(**args):
@@ -4752,7 +4755,7 @@ class stats:
         r = method_call.call_api(method = "flickr.stats.getPhotoReferrers", auth_handler = AUTH_HANDLER,**args)
         info = r["domain"]
         referrers = [ stats.Referrer(**r) for r in info.pop("referrer")]
-        return domains,Info(**info)
+        return FlickrList(domains,Info(**info))
 
     @staticmethod
     def getPhotosetDomains(**args):
@@ -4786,7 +4789,7 @@ class stats:
         r = method_call.call_api(method = "flickr.stats.getPhotosetDomains", auth_handler = AUTH_HANDLER,**args)
         info = r["domains"]
         domains = [ stats.Domain(**d) for d in info.pop("domain")]
-        return domains,Info(**info)
+        return FlickrList(domains,Info(**info))
 
     @staticmethod
     def getPhotosetReferrers(**args):
@@ -4823,7 +4826,7 @@ class stats:
         r = method_call.call_api(method = "flickr.stats.getPhotosetReferrers", auth_handler = AUTH_HANDLER,**args)
         info = r["domain"]
         referrers = [ stats.Referrer(**r) for r in info.pop("referrer")]
-        return domains,Info(**info)
+        return FlickrList(domains,Info(**info))
 
     @staticmethod
     def getPhotostreamDomains(**args):
@@ -4847,7 +4850,7 @@ class stats:
         r = method_call.call_api(method = "flickr.stats.getPhotostreamDomains", auth_handler = AUTH_HANDLER,**args)
         info = r["domains"]
         domains = [ stats.Domain(**d) for d in info.pop("domain")]
-        return domains,Info(**info)
+        return FlickrList(domains,Info(**info))
 
     @staticmethod
     def getPhotostreamReferrers(**args):
@@ -4881,7 +4884,7 @@ class stats:
         r = method_call.call_api(method = "flickr.stats.getPhotostreamReferrers", auth_handler = AUTH_HANDLER,**args)
         info = r["domain"]
         referrers = [ stats.Referrer(**r) for r in info.pop("referrer")]
-        return domains,Info(**info)
+        return FlickrList(domains,Info(**info))
     
     @staticmethod
     def getPhotostreamStats(date):
@@ -4921,7 +4924,7 @@ class stats:
         for p in info.pop("photo"):
             pstat = p.pop("stats")
             photos.append((Photo(**p),pstat))
-        return photos,Info(**info)
+        return FlickrList(photos,Info(**info))
     
     @staticmethod
     def getTotalViews(**args):
@@ -5134,7 +5137,7 @@ def _extract_photo_list(r):
         owner = Person(id = p["owner"])
         p["owner"] = owner
         photos.append( Photo(**p))
-    return photos,Info(**infos)
+    return FlickrList(photos,Info(**infos))
 
 def _check_list(obj):
     if isinstance(obj,list):
