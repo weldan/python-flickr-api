@@ -3396,6 +3396,7 @@ class Photoset(FlickrObject):
     __display__ = ["id","title"]
 
     class Comment(FlickrObject):
+        __display__ = ["id"]
         def delete(self):
             """ method: flickr.photosets.comments.deleteComment
                 Delete a photoset comment as the currently authenticated user.
@@ -3437,13 +3438,13 @@ class Photoset(FlickrObject):
 
             Note: This method requires an HTTP POST request.
         Arguments:
-            photo (Required)        
+            photo or photo_id(Required)        
         """
         try :
             args["photo_id"] = args.pop("photo").id
         except KeyError : pass
 
-        r = method_call.call_api(method = "flickr.photosets.add",photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.addPhoto",photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
 
     def addComment(self,**args):
         """ method: flickr.photosets.comments.addComment
@@ -3483,14 +3484,15 @@ class Photoset(FlickrObject):
         """
         try :
             pphoto = args.pop("primary_photo")
-            if isinstance(pphoto,Photo):
-                pphoto = pphoto.id
-            pphoto["primary_photo_id"] = pphoto
-        except KeyError: pass
-    
+            pphoto_id = pphoto.id
+        except KeyError :
+            pphoto_id = args.pop("primary_photo_id")
+            pphoto = Photo(id = pphoto_id)
+        args["primary_photo_id"] = pphoto_id
+
         r = method_call.call_api(method = "flickr.photosets.create", auth_handler = AUTH_HANDLER,**args)
         photoset = r["photoset"]
-        photoset["primary"] = Photo(id = photoset.pop("primary_photo_id"))
+        photoset["primary"] = pphoto
         return Photoset(**photoset)
 
     def delete(self):
@@ -3665,7 +3667,12 @@ class Photoset(FlickrObject):
         except KeyError : pass
         
         r = method_call.call_api(method = "flickr.photosets.getPhotos",photoset_id = self.id, **args)
-        return _extract_photo_list(r)
+        ps = r["photoset"]
+        return FlickrList([Photo(**p) for p in ps["photo"]],
+                           Info(pages = ps["pages"],
+                                page = ps["page"],
+                                perpage = ps["perpage"],
+                                total = ps["total"]))
     
     def getStats(self,date):
         """ method: flickr.stats.getPhotosetStats
