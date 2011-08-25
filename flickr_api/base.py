@@ -81,8 +81,9 @@ class FlickrObject(object):
             if isinstance(value,str):
                 value = "'%s'"%value
             else : value = str(value)
+            if len(value) > 20: value = value[:20]+"..."
             vals.append("%s = %s"%(k,value))
-        return "%s(%s)"%(self.__class__.__name__,",".join(vals))
+        return "%s(%s)"%(self.__class__.__name__,", ".join(vals))
     
     def __repr__(self): return str(self)
 
