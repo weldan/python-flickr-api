@@ -1170,7 +1170,7 @@ class Person(FlickrObject):
             This method does not require authentication.
         
         """
-        r = method_call.call_api(method = "flickr.urls.lookupPerson", url = url)
+        r = method_call.call_api(method = "flickr.urls.lookupUser", url = url)
         return Person(**r["user"])
 
     def getFavoriteContext(self,**args):
