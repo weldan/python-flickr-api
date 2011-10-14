@@ -124,6 +124,9 @@ class AuthHandler(object):
             raise AuthHandlerError("Access token not set yet.")
         with open(filename,"w") as f :
             f.write("\n".join([self.key,self.secret,self.access_token.key,self.access_token.secret]))
+    
+    def save(self,filename):
+        self.write(filename)
             
     @staticmethod
     def load(filename):
