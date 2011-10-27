@@ -1117,6 +1117,13 @@ class Person(FlickrObject):
     ]
     __display__ = ["id","username"]
     
+    def __init__(self,**params):
+        if not params.has_key("id"):
+            if params.has_key("nsid"):
+                params["id"] = params["nsid"]
+            else : raise ValueError("The 'id' or 'nsid' parameter is required")
+        FlickrObject.__init__(self,**params)
+    
     @staticmethod
     def findByEmail(find_email):
         """
@@ -1272,7 +1279,7 @@ class Person(FlickrObject):
         return _extract_photo_list(r)
 
     def getInfo(self,**args):
-        """ method: 
+        """ method: "flickr.people.getInfo"
         
         """
         
@@ -1427,7 +1434,7 @@ class Person(FlickrObject):
         return r["user"]["url"]
         
         
-    def getPublicPhotos(self):
+    def getPublicPhotos(self,**args):
         """    method = "flickr.people.getPublicPhotos"
             
             Get a list of public photos for the given user.
@@ -1501,10 +1508,10 @@ class Person(FlickrObject):
                 photo_list is a list of Photo objects.
                 info is a tuple with information about the request.
         """
-        r = method_call.call_api(method = "flickr.people.getPublicPhotos", user_id = self.id ,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.people.getPublicPhotos", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
         return _extract_photo_list(r)
 
-    def getPhotosOf(self,owner):
+    def getPhotosOf(self,owner,**args):
         """ method :flickr.people.getPhotosOf
                 Returns a list of photos containing a particular Flickr 
                 member.
@@ -1538,7 +1545,7 @@ class Person(FlickrObject):
         except AttributeError :
             owner_id = id
         
-        r = method_call.call_api(method = "flickr.people.getPhotosOf", user_id = self.id ,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.people.getPhotosOf", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
         return _extract_photo_list(r)
 
     def getPublicContacs(self,**args):

@@ -32,6 +32,7 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
                   a dictionnary built from the JSON answer is returned.
             args : the arguments to pass to the method.
     """
+
     clean_args(args)
     args["api_key"] = api_key
     if not raw :
