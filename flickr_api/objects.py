@@ -2723,12 +2723,12 @@ class Photo(FlickrObject):
         Authentication:
             This method does not require authentication.
         """
-        r = method_call.call_api(method = "flickr.photos.people", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.people.getList",photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
         
         info = r["people"]
         people = info.pop("person")
         people_ = []
-        if not isinstance(people,Person):
+        if isinstance(people,Person):
             people = [people]
         for p in people :
             p["id"] = p["nsid"]
