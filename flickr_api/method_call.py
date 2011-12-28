@@ -15,13 +15,11 @@ import json
 
 from base import FlickrError,FlickrAPIError
 
-from flickr_keys import API_KEY, API_SECRET
-
 REST_URL = "http://api.flickr.com/services/rest/"
 
-def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, needssigning = False,request_url = REST_URL, raw = False,**args):
+def call_api(api_key,api_secret,auth_handler = None, needssigning = False,request_url = REST_URL, raw = False,**args):
     """
-        Performs the calls to the Flickr REST interface.
+          Performs the calls to the Flickr REST interface.
         
         Arguments :
             api_key : The API_KEY to use, if none is given, the key from flickr_keys is used.
@@ -32,9 +30,10 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
                   a dictionnary built from the JSON answer is returned.
             args : the arguments to pass to the method.
     """
-
+    
     clean_args(args)
     args["api_key"] = api_key
+
     if not raw :
         args["format"] = 'json'
         args["nojsoncallback"] = 1
